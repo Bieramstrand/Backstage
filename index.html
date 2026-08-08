@@ -888,6 +888,8 @@
   let trackedArtists = [];
   let concertCache = {};
   let adminNotes = "";
+  let newsExpanded = false;
+  const NEWS_COLLAPSED_COUNT = 10;
   let ccLoadedOnce = false;
   let currentAlbumId = null;
   let editingEventId = null;
@@ -1010,18 +1012,19 @@
     });
 
     entries.sort((a, b) => b.ts - a.ts);
-    const recent = entries.slice(0, 40);
+    const all = entries.slice(0, 60);
+    const recent = newsExpanded ? all : all.slice(0, NEWS_COLLAPSED_COUNT);
 
-    document.getElementById("news-count").textContent = recent.length;
+    document.getElementById("news-count").textContent = all.length;
     const list = document.getElementById("news-list");
     const empty = document.getElementById("news-empty");
-    if (recent.length === 0) {
+    if (all.length === 0) {
       list.innerHTML = "";
       empty.classList.remove("hidden");
       return;
     }
     empty.classList.add("hidden");
-    list.innerHTML = recent.map((e, i) => `
+    let html = recent.map((e, i) => `
       <div class="news-item" data-news-index="${i}" style="cursor:pointer;">
         <span class="news-icon">${e.icon}</span>
         <div style="flex:1; min-width:0;">
@@ -1030,6 +1033,22 @@
         </div>
         <span class="news-link-icon">›</span>
       </div>`).join("");
+
+    const remaining = all.length - recent.length;
+    if (remaining > 0) {
+      html += `<button type="button" id="news-show-more" class="group-label dim" style="background:none; border:none; cursor:pointer; width:100%; text-align:center; padding:12px; justify-content:center;">+ ${remaining} weitere anzeigen</button>`;
+    } else if (newsExpanded && all.length > NEWS_COLLAPSED_COUNT) {
+      html += `<button type="button" id="news-show-more" class="group-label dim" style="background:none; border:none; cursor:pointer; width:100%; text-align:center; padding:12px; justify-content:center;">Weniger anzeigen</button>`;
+    }
+    list.innerHTML = html;
+
+    const showMoreBtn = document.getElementById("news-show-more");
+    if (showMoreBtn) {
+      showMoreBtn.addEventListener("click", () => {
+        newsExpanded = !newsExpanded;
+        renderNews();
+      });
+    }
 
     document.querySelectorAll("[data-news-index]").forEach((el) => {
       el.addEventListener("click", () => {

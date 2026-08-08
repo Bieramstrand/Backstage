@@ -1820,8 +1820,18 @@
       const weekendTag = dayOfWeek === 5 ? " · 🎉 Freitag" : dayOfWeek === 6 ? " · 🎉 Samstag" : "";
       statusEl.innerHTML = `<span class="cc-badge-hh">SHOW GEFUNDEN</span>`;
       expandedEl.classList.remove("hidden");
-      const ticketUrl = data.ticketUrl && data.ticketUrl.trim()
-        ? data.ticketUrl.trim()
+      const rawTicketUrl = data.ticketUrl ? data.ticketUrl.trim() : "";
+      const isSpecificTicketUrl = rawTicketUrl && (() => {
+        try {
+          const u = new URL(rawTicketUrl);
+          // Nur Pfad "/" (oder gar keiner) + keine Query-Parameter deutet auf eine reine Startseite hin
+          return (u.pathname.replace(/\/$/, "").length > 0) || u.search.length > 0;
+        } catch (e) {
+          return false;
+        }
+      })();
+      const ticketUrl = isSpecificTicketUrl
+        ? rawTicketUrl
         : `https://www.google.com/search?q=${encodeURIComponent(`${artist} ${data.location || "Hamburg"} tickets`)}`;
       const spotifyUrl = `https://open.spotify.com/search/${encodeURIComponent(artist)}`;
       expandedEl.innerHTML = `

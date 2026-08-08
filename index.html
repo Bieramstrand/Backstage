@@ -1806,9 +1806,13 @@
     const expandedEl = card.querySelector(`[data-cc-expanded]`);
     if (!statusEl || !expandedEl) return;
 
-    if (data && data.hasHamburgShow) {
+    const isoDate = data ? ccParseGermanDate(data.date) : "";
+    const today = new Date().toISOString().slice(0, 10);
+    const isPastDate = isoDate && isoDate < today;
+    const showIsValid = data && data.hasHamburgShow && !isPastDate;
+
+    if (showIsValid) {
       card.classList.add("has-hamburg");
-      const isoDate = ccParseGermanDate(data.date);
       const dayOfWeek = isoDate ? new Date(isoDate + "T00:00:00").getDay() : null; // 5 = Freitag, 6 = Samstag
       card.classList.toggle("cc-weekend", dayOfWeek === 5 || dayOfWeek === 6);
       const weekendTag = dayOfWeek === 5 ? " · 🎉 Freitag" : dayOfWeek === 6 ? " · 🎉 Samstag" : "";

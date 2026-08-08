@@ -1769,12 +1769,14 @@
     const cacheAge = cached ? Date.now() - cached.timestamp : Infinity;
     let isFresh = cached && cacheAge < CC_CACHE_DAYS * 24 * 60 * 60 * 1000;
 
-    // Zeigt der Cache eine Show, die schon vorbei ist? Dann gilt der Cache als veraltet,
-    // egal wie neu er ist – so verschwindet ein Konzert automatisch, sobald es vorbei ist.
-    if (isFresh && cached.data && cached.data.hasHamburgShow) {
-      const isoDate = ccParseGermanDate(cached.data.date);
+    // Zeigt der Cache eine Show (oder einen Tour-Hinweis), die schon vorbei ist? Dann gilt der
+    // Cache als veraltet, egal wie neu er ist – so verschwindet ein Termin automatisch, sobald er vorbei ist.
+    if (isFresh && cached.data) {
       const today = new Date().toISOString().slice(0, 10);
-      if (isoDate && isoDate < today) isFresh = false;
+      const isoDate = ccParseGermanDate(cached.data.date);
+      const nearestIso = ccParseGermanDate(cached.data.nearestShowDate);
+      if (cached.data.hasHamburgShow && isoDate && isoDate < today) isFresh = false;
+      if (cached.data.isOnTour && nearestIso && nearestIso < today) isFresh = false;
     }
 
     if (!forceRefresh && isFresh) {
@@ -1842,10 +1844,14 @@
       card.classList.remove("has-hamburg", "cc-weekend");
       expandedEl.classList.add("hidden");
       expandedEl.innerHTML = "";
-      if (data && data.isOnTour && data.nearestShowInfo) {
+      const nearestIso = data ? ccParseGermanDate(data.nearestShowDate) : "";
+      const nearestIsPast = nearestIso && nearestIso < today;
+      const tourInfoValid = data && data.isOnTour && data.nearestShowInfo && !nearestIsPast;
+      if (tourInfoValid) {
         statusEl.innerHTML = `<span class="cc-badge-tour">🚌 AUF TOUR</span>`;
         expandedEl.classList.remove("hidden");
-        expandedEl.innerHTML = `<div class="cc-card-info">Nicht in Hamburg, aber unterwegs: ${escapeHtml(data.nearestShowInfo)}</div>`;
+        const dateLabel = data.nearestShowDate ? `${escapeHtml(data.nearestShowDate)} – ` : "";
+        expandedEl.innerHTML = `<div class="cc-card-info">Nicht in Hamburg, aber unterwegs: ${dateLabel}${escapeHtml(data.nearestShowInfo)}</div>`;
       } else {
         statusEl.textContent = "Kein Termin bekannt";
       }

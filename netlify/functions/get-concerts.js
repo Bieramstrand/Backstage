@@ -36,7 +36,9 @@ Antworte AUSSCHLIESSLICH als valides JSON-Objekt (ohne Markdown-Codeblocks) mit 
   "ticketUrl": "Direkter Link zur KONKRETEN Event-Seite dieses Konzerts (z.B. von Eventim, Ticketmaster, der Venue-Website) – NIEMALS nur die Startseite eines Anbieters (z.B. NICHT 'eventim.de' allein). Falls kein echter, konkreter Event-Link gefunden wird, leerer String.",
   "isOnTour": true/false (true, falls die Band IRGENDWO in Deutschland/Europa aktuell oder demnächst einen Termin hat, auch wenn NICHT in Hamburg – dieses Feld möglichst nicht auf false setzen, ohne wirklich gründlich gesucht zu haben),
   "nearestShowDate": "TT.MM.JJJJ des nächstgelegenen/nächsten bekannten Tourtermins, falls isOnTour true ist, sonst leerer String",
-  "nearestShowInfo": "Falls isOnTour true ist und hasHamburgShow false: kurze Info zum nächstgelegenen oder nächsten bekannten Tourtermin (Ort/Venue), sonst leerer String"
+  "nearestShowInfo": "Falls isOnTour true ist und hasHamburgShow false: kurze Info zum nächstgelegenen oder nächsten bekannten Tourtermin (Ort/Venue), sonst leerer String",
+  "nearestShowInGermany": true/false (true, falls dieser nächstgelegene Tourtermin in Deutschland stattfindet, sonst false),
+  "nearestShowTicketUrl": "Direkter Link zur KONKRETEN Event-Seite dieses nächstgelegenen Tourtermins (nur falls nearestShowInGermany true ist), NIEMALS nur eine Anbieter-Startseite, sonst leerer String"
 }`;
 
     const response = await fetch('https://api.perplexity.ai/chat/completions', {

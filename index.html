@@ -77,7 +77,12 @@
   }
   .lock-pinboard {
     position: absolute;
-    inset: 0;
+    top: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 100%;
+    max-width: 480px;
+    height: 100%;
     z-index: 0;
   }
   .lock-pinboard img {
@@ -1840,16 +1845,14 @@
         <div style="display:flex; gap:6px; margin-top:8px; flex-wrap:wrap;">
           <a href="${escapeHtml(ticketUrl)}" target="_blank" rel="noreferrer" class="cc-ticket-btn">🎟️ Tickets</a>
           <a href="${escapeHtml(spotifyUrl)}" target="_blank" rel="noreferrer" class="cc-ticket-btn">▶️ Spotify</a>
-          <button type="button" class="btn-promote" data-cc-to-event="${escapeHtml(artist)}">🎫 Termin</button>
+          <button type="button" class="btn-promote" data-cc-to-event="${escapeHtml(artist)}">🎫 Plano</button>
           <button type="button" class="btn-promote" data-cc-to-idea="${escapeHtml(artist)}">💡 Idee</button>
         </div>`;
       const eventBtn = expandedEl.querySelector("[data-cc-to-event]");
       const ideaBtn = expandedEl.querySelector("[data-cc-to-idea]");
       if (eventBtn) eventBtn.addEventListener("click", () => ccQuickAdd("event", artist, data));
       if (ideaBtn) ideaBtn.addEventListener("click", () => ccQuickAdd("idea", artist, data));
-      // Gefundene Shows nach oben holen, damit sie bei vielen Bands nicht untergehen
-      const feed = document.getElementById("cc-widgets-feed");
-      if (feed && feed.firstChild !== card) feed.insertBefore(card, feed.firstChild);
+      card.classList.remove("cc-ontour");
     } else {
       card.classList.remove("has-hamburg", "cc-weekend");
       expandedEl.classList.add("hidden");
@@ -1857,15 +1860,40 @@
       const nearestIso = data ? ccParseGermanDate(data.nearestShowDate) : "";
       const nearestIsPast = nearestIso && nearestIso < today;
       const tourInfoValid = data && data.isOnTour && data.nearestShowInfo && !nearestIsPast;
+      card.classList.toggle("cc-ontour", !!tourInfoValid);
       if (tourInfoValid) {
         statusEl.innerHTML = `<span class="cc-badge-tour">🚌 AUF TOUR</span>`;
         expandedEl.classList.remove("hidden");
         const dateLabel = data.nearestShowDate ? `${escapeHtml(data.nearestShowDate)} – ` : "";
-        expandedEl.innerHTML = `<div class="cc-card-info">Nicht in Hamburg, aber unterwegs: ${dateLabel}${escapeHtml(data.nearestShowInfo)}</div>`;
+        const rawNearestTicketUrl = data.nearestShowTicketUrl ? data.nearestShowTicketUrl.trim() : "";
+        const isSpecificNearestTicketUrl = rawNearestTicketUrl && (() => {
+          try {
+            const u = new URL(rawNearestTicketUrl);
+            return (u.pathname.replace(/\/$/, "").length > 0) || u.search.length > 0;
+          } catch (e) {
+            return false;
+          }
+        })();
+        const showNearestTicketBtn = data.nearestShowInGermany && isSpecificNearestTicketUrl;
+        expandedEl.innerHTML = `
+          <div class="cc-card-info">Nicht in Hamburg, aber unterwegs: ${dateLabel}${escapeHtml(data.nearestShowInfo)}</div>
+          ${showNearestTicketBtn ? `<div style="margin-top:8px;"><a href="${escapeHtml(rawNearestTicketUrl)}" target="_blank" rel="noreferrer" class="cc-ticket-btn">🎟️ Tickets</a></div>` : ""}`;
       } else {
         statusEl.textContent = "Kein Termin bekannt";
       }
     }
+    ccReorderFeed();
+  }
+
+  function ccReorderFeed() {
+    // Reihenfolge: Hamburg-Shows zuerst, danach "Auf Tour"-Bands, danach der Rest.
+    // Innerhalb einer Gruppe bleibt die bestehende (alphabetische) Reihenfolge erhalten.
+    const feed = document.getElementById("cc-widgets-feed");
+    if (!feed) return;
+    const cards = Array.from(feed.children).filter((el) => el.classList.contains("cc-artist-card"));
+    const priority = (card) => card.classList.contains("has-hamburg") ? 0 : card.classList.contains("cc-ontour") ? 1 : 2;
+    const sorted = cards.map((card, i) => ({ card, i })).sort((a, b) => (priority(a.card) - priority(b.card)) || (a.i - b.i));
+    sorted.forEach(({ card }) => feed.appendChild(card));
   }
 
   function ccParseGermanDate(str) {

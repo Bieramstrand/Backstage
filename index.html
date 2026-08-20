@@ -1937,7 +1937,6 @@
 
   async function ccShareShow(artist, data, ticketUrl) {
     const lines = [`🎸 ${artist}`, `🗓️ ${data.date}${data.location ? ` · ${data.location}` : ""}`];
-    if (data.info) lines.push(data.info);
     if (ticketUrl) lines.push(`🎟️ ${ticketUrl}`);
     const shareText = lines.join("\n");
     if (navigator.share) {

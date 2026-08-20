@@ -1847,11 +1847,14 @@
           <a href="${escapeHtml(spotifyUrl)}" target="_blank" rel="noreferrer" class="cc-ticket-btn">▶️ Spotify</a>
           <button type="button" class="btn-promote" data-cc-to-event="${escapeHtml(artist)}">🎫 Plano</button>
           <button type="button" class="btn-promote" data-cc-to-idea="${escapeHtml(artist)}">💡 Idee</button>
+          <button type="button" class="btn-promote" data-cc-share="${escapeHtml(artist)}">📤 Teilen</button>
         </div>`;
       const eventBtn = expandedEl.querySelector("[data-cc-to-event]");
       const ideaBtn = expandedEl.querySelector("[data-cc-to-idea]");
+      const shareBtn = expandedEl.querySelector("[data-cc-share]");
       if (eventBtn) eventBtn.addEventListener("click", () => ccQuickAdd("event", artist, data));
       if (ideaBtn) ideaBtn.addEventListener("click", () => ccQuickAdd("idea", artist, data));
+      if (shareBtn) shareBtn.addEventListener("click", () => ccShareShow(artist, data, ticketUrl));
       card.classList.remove("cc-ontour");
     } else {
       card.classList.remove("has-hamburg", "cc-weekend");
@@ -1920,6 +1923,29 @@
       document.getElementById("idea-note").value = data.location || "Hamburg";
       document.getElementById("idea-form").classList.remove("hidden");
       document.getElementById("idea-title").scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  }
+
+  async function ccShareShow(artist, data, ticketUrl) {
+    const lines = [`🎸 ${artist}`, `🗓️ ${data.date}${data.location ? ` · ${data.location}` : ""}`];
+    if (data.info) lines.push(data.info);
+    if (ticketUrl) lines.push(`🎟️ ${ticketUrl}`);
+    const shareText = lines.join("\n");
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: `${artist} – Konzert`, text: shareText });
+      } catch (err) {
+        // Abbruch durch den Nutzer selbst ignorieren wir einfach
+      }
+    } else if (navigator.clipboard) {
+      try {
+        await navigator.clipboard.writeText(shareText);
+        alert("In die Zwischenablage kopiert – jetzt in WhatsApp/iMessage einfügen.");
+      } catch (err) {
+        alert(shareText);
+      }
+    } else {
+      alert(shareText);
     }
   }
 

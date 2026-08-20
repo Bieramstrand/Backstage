@@ -1820,6 +1820,7 @@
 
     if (showIsValid) {
       card.classList.add("has-hamburg");
+      card.dataset.ccDate = isoDate || "";
       const dayOfWeek = isoDate ? new Date(isoDate + "T00:00:00").getDay() : null; // 5 = Freitag, 6 = Samstag
       card.classList.toggle("cc-weekend", dayOfWeek === 5 || dayOfWeek === 6);
       const weekendTag = dayOfWeek === 5 ? " · 🎉 Freitag" : dayOfWeek === 6 ? " · 🎉 Samstag" : "";
@@ -1864,6 +1865,7 @@
       const nearestIsPast = nearestIso && nearestIso < today;
       const tourInfoValid = data && data.isOnTour && data.nearestShowInfo && !nearestIsPast;
       card.classList.toggle("cc-ontour", !!tourInfoValid);
+      card.dataset.ccDate = tourInfoValid ? (nearestIso || "") : "";
       if (tourInfoValid) {
         statusEl.innerHTML = `<span class="cc-badge-tour">🚌 AUF TOUR</span>`;
         expandedEl.classList.remove("hidden");
@@ -1889,13 +1891,20 @@
   }
 
   function ccReorderFeed() {
-    // Reihenfolge: Hamburg-Shows zuerst, danach "Auf Tour"-Bands, danach der Rest.
-    // Innerhalb einer Gruppe bleibt die bestehende (alphabetische) Reihenfolge erhalten.
+    // Reihenfolge: Hamburg-Shows zuerst (chronologisch, nächster Termin zuerst),
+    // danach "Auf Tour"-Bands (ebenfalls chronologisch), danach der Rest (alphabetisch).
     const feed = document.getElementById("cc-widgets-feed");
     if (!feed) return;
     const cards = Array.from(feed.children).filter((el) => el.classList.contains("cc-artist-card"));
     const priority = (card) => card.classList.contains("has-hamburg") ? 0 : card.classList.contains("cc-ontour") ? 1 : 2;
-    const sorted = cards.map((card, i) => ({ card, i })).sort((a, b) => (priority(a.card) - priority(b.card)) || (a.i - b.i));
+    const sorted = cards.map((card, i) => ({ card, i, date: card.dataset.ccDate || "" })).sort((a, b) => {
+      const pa = priority(a.card), pb = priority(b.card);
+      if (pa !== pb) return pa - pb;
+      if (a.date && b.date) return a.date.localeCompare(b.date);
+      if (a.date && !b.date) return -1;
+      if (!a.date && b.date) return 1;
+      return a.i - b.i;
+    });
     sorted.forEach(({ card }) => feed.appendChild(card));
   }
 

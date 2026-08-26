@@ -176,13 +176,20 @@
   header p.tagline { margin: 8px 0 0; font-size: 14px; color: var(--muted); }
 
   nav.tabs {
+    position: fixed;
+    left: 16px;
+    right: 16px;
+    bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+    z-index: 50;
+    max-width: 480px;
+    margin: 0 auto;
     display: flex;
     gap: 2px;
-    margin-top: 28px;
     background: var(--bg-soft);
-    border: 1px solid rgba(240,239,236,0.1);
+    border: 1px solid rgba(240,239,236,0.12);
     border-radius: 20px;
     padding: 6px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.4);
   }
   nav.tabs button {
     flex: 1;
@@ -213,7 +220,7 @@
     color: var(--amber);
   }
 
-  main { max-width: 960px; margin: 0 auto; padding: 40px 24px; }
+  main { max-width: 960px; margin: 0 auto; padding: 40px 24px; padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px)); }
   .section-header {
     display: flex; align-items: center; justify-content: space-between;
     margin-bottom: 20px; flex-wrap: wrap; gap: 12px;
@@ -538,13 +545,6 @@
         <h1 class="display">Backstage <span class="by-tag">by BierAmStrand</span></h1>
         <p class="tagline">Fotos, Konzerte und Termine – an einem Ort.</p>
         <p class="config-note hidden" id="config-warning" style="text-align:left; margin: 8px 0 0;">Hinweis: Firebase ist noch nicht eingerichtet – Eingaben werden aktuell nicht dauerhaft gespeichert.</p>
-        <nav class="tabs">
-          <button data-tab="news" class="active"><span class="bn-icon">📰</span><span class="bn-label">News</span></button>
-          <button data-tab="timeline"><span class="bn-icon">🎫</span><span class="bn-label">Plano</span></button>
-          <button data-tab="ideas"><span class="bn-icon">💡</span><span class="bn-label">Ideen</span></button>
-          <button data-tab="photos"><span class="bn-icon">📷</span><span class="bn-label">Foto/Video</span></button>
-          <button data-tab="concerts"><span class="bn-icon">🎸</span><span class="bn-label">Konzerte</span></button>
-        </nav>
       </div>
     </header>
 
@@ -742,6 +742,14 @@
         <div class="cc-widgets-feed" id="cc-widgets-feed"></div>
       </section>
     </main>
+
+    <nav class="tabs">
+      <button data-tab="news" class="active"><span class="bn-icon">📰</span><span class="bn-label">News</span></button>
+      <button data-tab="timeline"><span class="bn-icon">🎫</span><span class="bn-label">Plano</span></button>
+      <button data-tab="ideas"><span class="bn-icon">💡</span><span class="bn-label">Ideen</span></button>
+      <button data-tab="photos"><span class="bn-icon">📷</span><span class="bn-label">Foto/Video</span></button>
+      <button data-tab="concerts"><span class="bn-icon">🎸</span><span class="bn-label">Konzerte</span></button>
+    </nav>
 
     <footer>Daten werden in eurer gemeinsamen Firebase-Datenbank gespeichert – auf jedem Gerät mit dieser Seite sichtbar.</footer>
   </div>

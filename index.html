@@ -741,6 +741,47 @@
 
         <div class="cc-widgets-feed" id="cc-widgets-feed"></div>
       </section>
+
+      <!-- UNTERWEGS -->
+      <section id="tab-spots" class="tab-panel hidden">
+        <div class="section-header">
+          <div class="left"><span>🚶</span><h2>Unterwegs</h2><span class="count-badge" id="spot-count">0</span></div>
+          <button class="btn-add" id="toggle-spot-form">＋ Location</button>
+        </div>
+        <p style="font-size:14px; color:var(--muted); margin:-8px 0 20px;">Essens- und Location-Empfehlungen in Hamburg (und drumherum).</p>
+        <form class="entry-form hidden" id="spot-form">
+          <label class="full">Name<input type="text" id="spot-name" placeholder="z. B. Beyond Beer Hamburg" required /></label>
+          <label>Kategorie
+            <select id="spot-category">
+              <option>Bar</option>
+              <option>Restaurant</option>
+              <option>Café</option>
+              <option>Imbiss</option>
+              <option>Sonstiges</option>
+            </select>
+          </label>
+          <label>Empfohlen von
+            <select id="spot-who">
+              <option>Buggi</option>
+              <option>Timo</option>
+              <option>Bastian</option>
+              <option>Marco</option>
+            </select>
+          </label>
+          <label class="full">Adresse / Google-Maps-Link (optional)<input type="text" id="spot-maps" placeholder="Adresse oder Link" /></label>
+          <label class="full">Untappd-Link (optional, für die Taplist)<input type="url" id="spot-untappd" placeholder="https://untappd.com/v/..." /></label>
+          <label class="full">Notiz<input type="text" id="spot-note" placeholder="Was ist gut dort?" /></label>
+          <div class="form-actions">
+            <button type="button" class="btn-cancel" data-cancel="spot-form">Abbrechen</button>
+            <button type="submit" class="btn-save" id="spot-submit-btn">Speichern</button>
+          </div>
+        </form>
+        <div id="spots-list"></div>
+        <div id="spots-empty" class="empty-state hidden">
+          <div class="ic">🚶</div>
+          <p>Noch keine Location-Tipps gesammelt.</p>
+        </div>
+      </section>
     </main>
 
     <nav class="tabs">
@@ -749,6 +790,7 @@
       <button data-tab="ideas"><span class="bn-icon">💡</span><span class="bn-label">Ideen</span></button>
       <button data-tab="photos"><span class="bn-icon">📷</span><span class="bn-label">Foto/Video</span></button>
       <button data-tab="concerts"><span class="bn-icon">🎸</span><span class="bn-label">Konzerte</span></button>
+      <button data-tab="spots"><span class="bn-icon">🚶</span><span class="bn-label">Unterwegs</span></button>
     </nav>
 
     <footer>Daten werden in eurer gemeinsamen Firebase-Datenbank gespeichert – auf jedem Gerät mit dieser Seite sichtbar.</footer>
@@ -900,7 +942,7 @@
     });
   }
 
-  let events = [], photos = [], playlists = [], ideas = [], albums = [];
+  let events = [], photos = [], playlists = [], ideas = [], albums = [], spots = [];
   let trackedArtists = [];
   let concertCache = {};
   let adminNotes = "";
@@ -912,6 +954,7 @@
   let promotingIdeaId = null;
   let editingIdeaId = null;
   let editingPlaylistId = null;
+  let editingSpotId = null;
   let unlocked = false;
   const PASSWORD = "mbcc";
   const MAX_IMAGE_SIZE = 15 * 1024 * 1024;
@@ -983,7 +1026,7 @@
   function persist() {
     renderNews();
     if (!docRef) return;
-    docRef.set({ events, photos, playlists, ideas, albums, trackedArtists, concertCache, adminNotes }, { merge: true }).catch((e) => console.error("Speichern fehlgeschlagen", e));
+    docRef.set({ events, photos, playlists, ideas, albums, trackedArtists, concertCache, adminNotes, spots }, { merge: true }).catch((e) => console.error("Speichern fehlgeschlagen", e));
   }
 
   function fmtRelative(ts) {
@@ -1025,6 +1068,13 @@
 
     albums.forEach((al) => {
       if (al.createdAt) entries.push({ ts: al.createdAt, icon: "🖼️", html: `<b>${escapeHtml(al.who)}</b> hat ein Album angelegt: <b>${escapeHtml(al.name)}</b>`, tab: "photos", targetId: `album-${al.id}` });
+    });
+
+    spots.forEach((spot) => {
+      if (spot.createdAt) entries.push({ ts: spot.createdAt, icon: "🚶", html: `<b>${escapeHtml(spot.who)}</b> hat einen Location-Tipp eingetragen: <b>${escapeHtml(spot.name)}</b>`, tab: "spots", targetId: `spot-${spot.id}` });
+      (spot.comments || []).forEach((c) => {
+        if (c.createdAt) entries.push({ ts: c.createdAt, icon: "💬", html: `<b>${escapeHtml(c.who)}</b> hat zu „${escapeHtml(spot.name)}“ kommentiert: ${escapeHtml(c.text)}`, tab: "spots", targetId: `spot-${spot.id}` });
+      });
     });
 
     entries.sort((a, b) => b.ts - a.ts);
@@ -1090,6 +1140,7 @@
     renderIdeas();
     renderNews();
     renderCCChips();
+    renderSpots();
   }
 
   // ---- Tabs ----
@@ -1121,6 +1172,7 @@
     label.textContent = isHidden ? "Vergangen anzeigen" : "Vergangen ausblenden";
   });
   wireToggle("toggle-idea-form", "idea-form");
+  wireToggle("toggle-spot-form", "spot-form");
   wireToggle("toggle-photo-form", "photo-form");
   wireToggle("toggle-album-form", "album-form");
   document.getElementById("back-to-albums").addEventListener("click", () => {
@@ -1140,6 +1192,7 @@
         document.getElementById("ev-file-status").classList.add("hidden");
       }
       if (formId === "idea-form") { editingIdeaId = null; document.getElementById("idea-submit-btn").textContent = "Speichern"; }
+      if (formId === "spot-form") { editingSpotId = null; document.getElementById("spot-submit-btn").textContent = "Speichern"; }
     });
   });
 
@@ -1391,6 +1444,61 @@
     const before = ideas.length;
     ideas = ideas.filter((idea) => !(idea.date && idea.date < today));
     if (ideas.length !== before) persist();
+  }
+
+  function renderSpots() {
+    document.getElementById("spot-count").textContent = spots.length;
+    const list = document.getElementById("spots-list");
+    const empty = document.getElementById("spots-empty");
+    if (spots.length === 0) {
+      list.innerHTML = "";
+      empty.classList.remove("hidden");
+      return;
+    }
+    empty.classList.add("hidden");
+    list.innerHTML = spots.map((spot) => `
+      <div class="idea-card" style="flex-direction:column; align-items:stretch;" id="spot-${spot.id}">
+        <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:12px;">
+          <div style="min-width:0; flex:1;">
+            <div class="title-row"><span>🚶</span><span>${escapeHtml(spot.name)}</span></div>
+            <p class="who">${escapeHtml(spot.category || "")} · ${escapeHtml(spot.who)}</p>
+            ${spot.maps ? `<a href="${/^https?:\/\//.test(spot.maps) ? escapeHtml(spot.maps) : "https://maps.apple.com/?q=" + encodeURIComponent(spot.maps)}" target="_blank" rel="noreferrer" style="word-break:break-all; overflow-wrap:break-word;">📍 ${escapeHtml(spot.maps)}</a>` : ""}
+            ${spot.untappd ? `<a href="${escapeHtml(spot.untappd)}" target="_blank" rel="noreferrer" style="display:block; word-break:break-all; overflow-wrap:break-word; margin-top:4px;">🍺 Taplist auf Untappd ansehen</a>` : ""}
+            ${spot.note ? `<p class="note" style="word-break:break-all; overflow-wrap:break-word;">${escapeHtml(spot.note)}</p>` : ""}
+          </div>
+          <div class="idea-actions" style="flex-shrink:0;">
+            <button class="icon-btn" data-edit-spot="${spot.id}" title="Bearbeiten">✏️</button>
+            <button class="icon-btn" data-remove-spot="${spot.id}" title="Löschen">🗑️</button>
+          </div>
+        </div>
+        ${commentsHtml(spot.id, spot.comments)}
+      </div>`).join("");
+    wireComments(["spots-list"], () => spots, renderSpots);
+
+    document.querySelectorAll("[data-remove-spot]").forEach((b) => {
+      b.addEventListener("click", () => {
+        if (!confirm("Location wirklich löschen?")) return;
+        spots = spots.filter((x) => x.id !== b.dataset.removeSpot);
+        persist();
+        renderSpots();
+      });
+    });
+    document.querySelectorAll("[data-edit-spot]").forEach((b) => {
+      b.addEventListener("click", () => {
+        const spot = spots.find((x) => x.id === b.dataset.editSpot);
+        if (!spot) return;
+        editingSpotId = spot.id;
+        document.getElementById("spot-name").value = spot.name;
+        document.getElementById("spot-category").value = spot.category || "Bar";
+        document.getElementById("spot-who").value = spot.who;
+        document.getElementById("spot-maps").value = spot.maps || "";
+        document.getElementById("spot-untappd").value = spot.untappd || "";
+        document.getElementById("spot-note").value = spot.note || "";
+        document.getElementById("spot-submit-btn").textContent = "Aktualisieren";
+        document.getElementById("spot-form").classList.remove("hidden");
+        document.getElementById("spot-name").scrollIntoView({ behavior: "smooth", block: "center" });
+      });
+    });
   }
 
   function renderIdeas() {
@@ -1661,6 +1769,31 @@
     }
     persist();
     renderIdeas();
+    e.target.reset();
+    e.target.classList.add("hidden");
+  });
+
+  document.getElementById("spot-form").addEventListener("submit", (e) => {
+    e.preventDefault();
+    const spotData = {
+      name: document.getElementById("spot-name").value,
+      category: document.getElementById("spot-category").value,
+      who: document.getElementById("spot-who").value,
+      maps: document.getElementById("spot-maps").value,
+      untappd: document.getElementById("spot-untappd").value,
+      note: document.getElementById("spot-note").value,
+    };
+    if (!spotData.name) return;
+    if (editingSpotId) {
+      const idx = spots.findIndex((x) => x.id === editingSpotId);
+      if (idx !== -1) spots[idx] = { ...spots[idx], ...spotData };
+      editingSpotId = null;
+      document.getElementById("spot-submit-btn").textContent = "Speichern";
+    } else {
+      spots.unshift({ id: uid(), createdAt: Date.now(), ...spotData });
+    }
+    persist();
+    renderSpots();
     e.target.reset();
     e.target.classList.add("hidden");
   });
@@ -1991,6 +2124,7 @@
         trackedArtists = data.trackedArtists || (data.trackedArtists === undefined && Object.keys(data).length === 0 ? ["Fjørt", "Die Ärzte", "EQUAL SILENCE"] : []);
         concertCache = data.concertCache || {};
         adminNotes = data.adminNotes || "";
+        spots = data.spots || [];
         renderAll();
       }, (err) => console.error("Firestore-Fehler", err));
     } catch (err) {

@@ -427,6 +427,8 @@
   .cc-card-date { font-size: 13px; font-weight: 700; color: var(--amber); }
   .cc-badge-hh { background: var(--amber); color: var(--bg); font-size: 10px; font-weight: 800; padding: 3px 8px; border-radius: 999px; flex-shrink: 0; }
   .cc-badge-tour { background: rgba(240,239,236,0.12); color: var(--paper); font-size: 10px; font-weight: 700; padding: 3px 8px; border-radius: 999px; flex-shrink: 0; }
+  summary::-webkit-details-marker { display: none; }
+  summary { -webkit-tap-highlight-color: transparent; }
   .cc-ticket-btn {
     display: inline-flex; align-items: center; gap: 4px;
     background: rgba(240,239,236,0.08); border: 1px solid rgba(240,239,236,0.18);
@@ -726,7 +728,10 @@
         <div class="section-header">
           <div class="left"><span>🎸</span><h2>Konzerte</h2><span class="count-badge" id="cc-artist-count">0</span></div>
         </div>
-        <p style="font-size:14px; color:var(--muted); margin:-8px 0 20px;">📍 Hamburg-Radar: Sobald ihr eine Band speichert, sucht Backstage automatisch nach kommenden Hamburg-Shows – und hält das laufend aktuell. Termine am Wochenende (Fr/Sa) sind extra umrandet. Die Bands sind alphabetisch sortiert, gefundene Shows springen aber trotzdem nach oben.</p>
+        <details style="margin:-8px 0 20px;">
+          <summary style="font-size:13px; color:var(--muted); cursor:pointer; list-style:none;">📍 Wie funktioniert der Hamburg-Radar? <span style="text-decoration:underline;">Mehr erfahren</span></summary>
+          <p style="font-size:13px; color:var(--muted); margin:8px 0 0;">Sobald ihr eine Band speichert, sucht Backstage automatisch nach kommenden Hamburg-Shows – und hält das laufend aktuell. Termine am Wochenende (Fr/Sa) sind extra umrandet. Die Bands sind alphabetisch sortiert, gefundene Shows springen aber trotzdem nach oben.</p>
+        </details>
 
         <div class="cc-add-artist-box">
           <form id="cc-add-artist-form">
@@ -1059,8 +1064,37 @@
       });
     });
 
+    // Fotos aus demselben Upload-Vorgang (batchId) zusammenfassen, wenn es mehr als 2 sind –
+    // Fotos ohne batchId (z. B. ältere Einträge) oder Einzel-/Zweier-Batches bleiben einzeln.
+    const photoGroups = {};
+    const singlePhotos = [];
     photos.forEach((ph) => {
       if (!ph.createdAt) return;
+      if (ph.batchId) {
+        (photoGroups[ph.batchId] = photoGroups[ph.batchId] || []).push(ph);
+      } else {
+        singlePhotos.push(ph);
+      }
+    });
+    Object.values(photoGroups).forEach((group) => {
+      if (group.length > 2) {
+        const first = group[0];
+        const album = albums.find((a) => a.id === first.albumId);
+        const albumPart = album ? ` im Album „${escapeHtml(album.name)}“` : "";
+        const videoCount = group.filter((p) => p.type === "video").length;
+        const photoCount = group.length - videoCount;
+        const parts = [];
+        if (photoCount > 0) parts.push(`${photoCount} Foto${photoCount === 1 ? "" : "s"}`);
+        if (videoCount > 0) parts.push(`${videoCount} Video${videoCount === 1 ? "" : "s"}`);
+        const countLabel = parts.join(" und ");
+        const icon = videoCount > 0 && photoCount === 0 ? "🎬" : "📷";
+        const latestTs = Math.max(...group.map((p) => p.createdAt));
+        entries.push({ ts: latestTs, icon, html: `<b>${escapeHtml(first.who)}</b> hat ${countLabel} hinzugefügt${albumPart}`, tab: "photos", targetId: `photo-${first.id}`, albumId: first.albumId });
+      } else {
+        singlePhotos.push(...group);
+      }
+    });
+    singlePhotos.forEach((ph) => {
       const album = albums.find((a) => a.id === ph.albumId);
       const albumPart = album ? ` im Album „${escapeHtml(album.name)}“` : "";
       entries.push({ ts: ph.createdAt, icon: ph.type === "video" ? "🎬" : "📷", html: `<b>${escapeHtml(ph.who)}</b> hat ${ph.type === "video" ? "ein Video" : "ein Foto"} hinzugefügt${albumPart}`, tab: "photos", targetId: `photo-${ph.id}`, albumId: ph.albumId });
@@ -1701,6 +1735,7 @@
       }
       submitBtn.disabled = true;
       const newPhotos = [];
+      const batchId = uid();
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
         statusEl.textContent = `Lade Datei ${i + 1} von ${files.length} hoch …`;
@@ -1711,7 +1746,7 @@
           await ref.put(file);
           const downloadUrl = await ref.getDownloadURL();
           const type = file.type && file.type.startsWith("video/") ? "video" : "image";
-          newPhotos.push({ id: uid(), createdAt: Date.now(), url: downloadUrl, date, caption, who, albumId: currentAlbumId, type });
+          newPhotos.push({ id: uid(), createdAt: Date.now(), url: downloadUrl, date, caption, who, albumId: currentAlbumId, type, batchId });
         } catch (err) {
           console.error("Upload fehlgeschlagen", err);
           statusEl.textContent = "Ein Upload ist fehlgeschlagen. Bitte nochmal versuchen.";
@@ -1802,7 +1837,7 @@
   const CC_CACHE_DAYS = 7; // Cache-Dauer, danach wird eine Band automatisch neu abgefragt
 
   let ccChipsExpanded = false;
-  const CC_CHIPS_COLLAPSED_COUNT = 5;
+  const CC_CHIPS_COLLAPSED_COUNT = 4;
 
   function renderCCChips() {
     const container = document.getElementById("cc-tracked-chips");

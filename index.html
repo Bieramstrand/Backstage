@@ -1311,6 +1311,7 @@
               ${filesHtml}
             </div>
             <div class="event-actions-row">
+              ${ev.location ? `<a class="event-tile-btn" href="https://www.hvv.de/de/fahrplaene/fahrplanauskunft?ziel=${encodeURIComponent(ev.location)}" target="_blank" rel="noreferrer">🚍 HVV</a>` : ""}
               ${ev.type === "Konzert" ? `<a class="event-tile-btn" href="https://open.spotify.com/search/${encodeURIComponent(ev.title)}" target="_blank" rel="noreferrer">▶️ Spotify</a>` : ""}
               ${ev.type === "Konzert" ? `<a class="event-tile-btn" href="https://www.setlist.fm/search?query=${encodeURIComponent(ev.title)}" target="_blank" rel="noreferrer">📋 Setlist</a>` : ""}
               <button class="event-tile-btn" data-share-event="${ev.id}">📤 Teilen</button>
@@ -2023,6 +2024,7 @@
         : `https://www.google.com/search?q=${encodeURIComponent(`${artist} ${data.location || "Hamburg"} tickets`)}`;
       const spotifyUrl = `https://open.spotify.com/search/${encodeURIComponent(artist)}`;
       const setlistUrl = `https://www.setlist.fm/search?query=${encodeURIComponent(artist)}`;
+      const hvvUrl = `https://www.hvv.de/de/fahrplaene/fahrplanauskunft?ziel=${encodeURIComponent(data.location || "Hamburg")}`;
       expandedEl.innerHTML = `
         <div class="cc-card-date">🗓️ ${escapeHtml(data.date)}${data.time ? ` · 🕐 ${escapeHtml(data.time)}` : ""}${weekendTag} · ${escapeHtml(data.location || "")}</div>
         ${ccRenderSupportActsHtml(data.supportActs)}
@@ -2031,6 +2033,7 @@
           <a href="${escapeHtml(ticketUrl)}" target="_blank" rel="noreferrer" class="cc-ticket-btn">🎟️ Tickets</a>
           <a href="${escapeHtml(spotifyUrl)}" target="_blank" rel="noreferrer" class="cc-ticket-btn">▶️ Spotify</a>
           <a href="${escapeHtml(setlistUrl)}" target="_blank" rel="noreferrer" class="cc-ticket-btn">📋 Setlist</a>
+          <a href="${escapeHtml(hvvUrl)}" target="_blank" rel="noreferrer" class="cc-ticket-btn">🚍 HVV</a>
           <button type="button" class="btn-promote" data-cc-to-event="${escapeHtml(artist)}">🎫 Plano</button>
           <button type="button" class="btn-promote" data-cc-to-idea="${escapeHtml(artist)}">💡 Idee</button>
           <button type="button" class="btn-promote" data-cc-share="${escapeHtml(artist)}">📤 Teilen</button>

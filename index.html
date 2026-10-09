@@ -291,11 +291,12 @@
   }
   .event-tile-btn {
     display: inline-flex; align-items: center; gap: 5px;
-    background: rgba(240,239,236,0.06); border: 1px solid rgba(240,239,236,0.14);
-    color: var(--muted); font-size: 12.5px; font-weight: 600;
+    background: rgba(240,239,236,0.1); border: 1px solid rgba(240,239,236,0.22);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.25);
+    color: var(--paper); font-size: 12.5px; font-weight: 600;
     padding: 7px 11px; border-radius: 10px; cursor: pointer; text-decoration: none;
   }
-  .event-tile-btn:hover { background: rgba(232,163,61,0.15); color: var(--amber); border-color: rgba(232,163,61,0.3); }
+  .event-tile-btn:hover { background: rgba(232,163,61,0.18); color: var(--amber); border-color: rgba(232,163,61,0.4); }
 
   .photos-grid {
     display: grid;
@@ -448,6 +449,19 @@
     color: var(--paper); padding: 8px 14px; border-radius: 6px; font-size: 13px; font-weight: 600; text-decoration: none;
   }
   .cc-ticket-btn:hover { background: var(--amber); color: var(--bg); }
+  .cc-support-list { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 4px; }
+  .cc-support-chip {
+    display: inline-flex; align-items: center; gap: 4px;
+    background: rgba(240,239,236,0.07); border: 1px solid rgba(240,239,236,0.16);
+    color: var(--muted); font-size: 11.5px; font-weight: 600;
+    padding: 4px 9px; border-radius: 999px; text-decoration: none;
+  }
+  .cc-support-chip:hover { background: rgba(232,163,61,0.15); color: var(--amber); border-color: rgba(232,163,61,0.3); }
+  .cc-inline-remove {
+    background: transparent; border: none; color: var(--muted); cursor: pointer;
+    font-size: 11px; padding: 2px 5px; border-radius: 6px; margin-left: 2px;
+  }
+  .cc-inline-remove:hover { background: rgba(255,80,80,0.15); color: #ff6b6b; }
   .cc-card-info { font-size: 12px; color: var(--muted); margin-top: 4px; }
   .cc-card-body-expanded { margin-top: 8px; }
 
@@ -941,6 +955,7 @@
   let trackedArtists = [];
   let concertCache = {};
   let adminNotes = "";
+  let bandAddLog = [];
   let newsExpanded = false;
   const NEWS_COLLAPSED_COUNT = 10;
   let ccLoadedOnce = false;
@@ -1021,7 +1036,7 @@
   function persist() {
     renderNews();
     if (!docRef) return;
-    docRef.set({ events, photos, playlists, ideas, albums, trackedArtists, concertCache, adminNotes, spots }, { merge: true }).catch((e) => console.error("Speichern fehlgeschlagen", e));
+    docRef.set({ events, photos, playlists, ideas, albums, trackedArtists, concertCache, adminNotes, spots, bandAddLog }, { merge: true }).catch((e) => console.error("Speichern fehlgeschlagen", e));
   }
 
   function fmtRelative(ts) {
@@ -1037,8 +1052,35 @@
     return new Date(ts).toLocaleDateString("de-DE", { day: "2-digit", month: "short", year: "numeric" });
   }
 
+  function ccWeekMondayKey(ts) {
+    const d = new Date(ts);
+    const dayIdx = (d.getDay() + 6) % 7; // Montag=0 ... Sonntag=6
+    const monday = new Date(d.getFullYear(), d.getMonth(), d.getDate() - dayIdx);
+    return monday.getTime();
+  }
+
   function renderNews() {
     const entries = [];
+
+    // Wöchentlicher Rückblick: welche Bands wurden diese Woche neu im Konzert-Radar eingetragen.
+    // Wird client-seitig aus bandAddLog berechnet, sobald die betreffende Woche (Mo–So) vorbei ist.
+    const weekGroups = {};
+    (bandAddLog || []).forEach((entry) => {
+      const weekKey = ccWeekMondayKey(entry.addedAt);
+      (weekGroups[weekKey] = weekGroups[weekKey] || []).push(entry.artist);
+    });
+    Object.entries(weekGroups).forEach(([weekKey, artists]) => {
+      const mondayStart = Number(weekKey);
+      const sundayEnd = mondayStart + 7 * 24 * 60 * 60 * 1000 - 1;
+      if (sundayEnd > Date.now()) return; // Woche noch nicht vorbei
+      const uniqueArtists = [...new Set(artists)];
+      entries.push({
+        ts: sundayEnd,
+        icon: "🎸",
+        html: `<b>Wochenrückblick:</b> Diese Woche neu im Konzert-Radar: <b>${uniqueArtists.map(escapeHtml).join(", ")}</b>`,
+        tab: "concerts",
+      });
+    });
 
     events.forEach((ev) => {
       if (ev.createdAt) entries.push({ ts: ev.createdAt, icon: "🎫", html: `<b>${escapeHtml(ev.who)}</b> hat einen Termin eingetragen: <b>${escapeHtml(ev.title)}</b>`, tab: "timeline", targetId: `event-${ev.id}` });
@@ -1811,6 +1853,9 @@
       return;
     }
     trackedArtists.push(val);
+    const cutoff = Date.now() - 120 * 24 * 60 * 60 * 1000;
+    bandAddLog = (bandAddLog || []).filter((e) => e.addedAt > cutoff);
+    bandAddLog.push({ artist: val, addedAt: Date.now() });
     persist();
     input.value = "";
     renderCCChips();
@@ -1899,6 +1944,24 @@
     }
   }
 
+  function ccRenderSupportActsHtml(str) {
+    if (!str) return "";
+    const names = str.split(",").map((s) => s.trim()).filter(Boolean);
+    if (names.length === 0) return "";
+    const chips = names.map((n) => `<a href="https://open.spotify.com/search/${encodeURIComponent(n)}" target="_blank" rel="noreferrer" class="cc-support-chip">▶️ ${escapeHtml(n)}</a>`).join("");
+    return `<div class="cc-card-info" style="margin-bottom:4px;">👥 Vorbands:</div><div class="cc-support-list">${chips}</div>`;
+  }
+
+  function ccRemoveArtist(artist) {
+    const idx = trackedArtists.findIndex((a) => a.toLowerCase() === artist.toLowerCase());
+    if (idx === -1) return;
+    trackedArtists.splice(idx, 1);
+    if (concertCache[artist.toLowerCase()]) delete concertCache[artist.toLowerCase()];
+    persist();
+    renderCCChips();
+    renderCCArtistCards();
+  }
+
   function renderCCCard(artist, data) {
     const card = document.getElementById(`cc-card-${ccSafeId(artist)}`);
     if (!card) return;
@@ -1933,13 +1996,15 @@
         ? rawTicketUrl
         : `https://www.google.com/search?q=${encodeURIComponent(`${artist} ${data.location || "Hamburg"} tickets`)}`;
       const spotifyUrl = `https://open.spotify.com/search/${encodeURIComponent(artist)}`;
+      const setlistUrl = `https://www.setlist.fm/search?query=${encodeURIComponent(artist)}`;
       expandedEl.innerHTML = `
-        <div class="cc-card-date">🗓️ ${escapeHtml(data.date)}${weekendTag} · ${escapeHtml(data.location || "")}</div>
-        ${data.supportActs ? `<div class="cc-card-info">👥 Vorbands: ${escapeHtml(data.supportActs)}</div>` : ""}
+        <div class="cc-card-date">🗓️ ${escapeHtml(data.date)}${data.time ? ` · 🕐 ${escapeHtml(data.time)}` : ""}${weekendTag} · ${escapeHtml(data.location || "")}</div>
+        ${ccRenderSupportActsHtml(data.supportActs)}
         ${data.info ? `<div class="cc-card-info">${escapeHtml(data.info)}</div>` : ""}
         <div style="display:flex; gap:6px; margin-top:8px; flex-wrap:wrap;">
           <a href="${escapeHtml(ticketUrl)}" target="_blank" rel="noreferrer" class="cc-ticket-btn">🎟️ Tickets</a>
           <a href="${escapeHtml(spotifyUrl)}" target="_blank" rel="noreferrer" class="cc-ticket-btn">▶️ Spotify</a>
+          <a href="${escapeHtml(setlistUrl)}" target="_blank" rel="noreferrer" class="cc-ticket-btn">📋 Setlist</a>
           <button type="button" class="btn-promote" data-cc-to-event="${escapeHtml(artist)}">🎫 Plano</button>
           <button type="button" class="btn-promote" data-cc-to-idea="${escapeHtml(artist)}">💡 Idee</button>
           <button type="button" class="btn-promote" data-cc-share="${escapeHtml(artist)}">📤 Teilen</button>
@@ -1974,12 +2039,17 @@
           }
         })();
         const showNearestTicketBtn = data.nearestShowInGermany && isSpecificNearestTicketUrl;
+        const nearestTimeLabel = data.nearestShowTime ? ` · 🕐 ${escapeHtml(data.nearestShowTime)}` : "";
         expandedEl.innerHTML = `
-          <div class="cc-card-info">Nicht in Hamburg, aber unterwegs: ${dateLabel}${escapeHtml(data.nearestShowInfo)}</div>
-          ${data.nearestShowSupportActs ? `<div class="cc-card-info">👥 Vorbands: ${escapeHtml(data.nearestShowSupportActs)}</div>` : ""}
+          <div class="cc-card-info">Nicht in Hamburg, aber unterwegs: ${dateLabel}${escapeHtml(data.nearestShowInfo)}${nearestTimeLabel}</div>
+          ${ccRenderSupportActsHtml(data.nearestShowSupportActs)}
           ${showNearestTicketBtn ? `<div style="margin-top:8px;"><a href="${escapeHtml(rawNearestTicketUrl)}" target="_blank" rel="noreferrer" class="cc-ticket-btn">🎟️ Tickets</a></div>` : ""}`;
       } else {
-        statusEl.textContent = "Kein Termin bekannt";
+        statusEl.innerHTML = `Kein Termin bekannt <button type="button" class="cc-inline-remove" data-cc-remove="${escapeHtml(artist)}" title="Band entfernen">✕</button>`;
+        const removeBtn = statusEl.querySelector("[data-cc-remove]");
+        if (removeBtn) removeBtn.addEventListener("click", () => {
+          if (confirm(`"${artist}" wirklich aus dem Radar entfernen?`)) ccRemoveArtist(artist);
+        });
       }
     }
     ccReorderFeed();
@@ -2019,6 +2089,7 @@
       if (isoDate) document.getElementById("ev-date").value = isoDate;
       document.getElementById("ev-location").value = data.location || "Hamburg";
       document.getElementById("ev-type").value = "Konzert";
+      document.getElementById("ev-time").value = data.time || "";
       document.getElementById("ev-note").value = noteText;
       document.getElementById("event-form").classList.remove("hidden");
       document.getElementById("ev-title").scrollIntoView({ behavior: "smooth", block: "center" });
@@ -2077,6 +2148,7 @@
         trackedArtists = data.trackedArtists || (data.trackedArtists === undefined && Object.keys(data).length === 0 ? ["Fjørt", "Die Ärzte", "EQUAL SILENCE"] : []);
         concertCache = data.concertCache || {};
         adminNotes = data.adminNotes || "";
+        bandAddLog = data.bandAddLog || [];
         spots = data.spots || [];
         renderAll();
       }, (err) => console.error("Firestore-Fehler", err));

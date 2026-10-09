@@ -558,6 +558,7 @@
           <h2 class="display" style="font-size:26px; margin:0;">Notizen</h2>
           <a href="#" id="admin-notes-back" style="font-size:13px; color:var(--muted); text-decoration:none; flex-shrink:0;">← Zurück</a>
         </div>
+        <div id="admin-visit-stats" style="margin-bottom:20px; padding:16px; border-radius:10px; background:rgba(240,239,236,0.06); border:1px solid rgba(240,239,236,0.14);"></div>
         <textarea id="admin-notes-textarea" rows="20" placeholder="Ideen, Notizen, To-dos für die Website…" style="width:100%; padding:14px; border-radius:8px; background:rgba(240,239,236,0.06); border:1px solid rgba(240,239,236,0.18); color:var(--paper); font-family:inherit; font-size:14px; resize:vertical; box-sizing:border-box;"></textarea>
         <div style="display:flex; justify-content:flex-end; align-items:center; gap:10px; margin-top:12px;">
           <span id="admin-save-status" style="font-size:12px; color:var(--muted);"></span>
@@ -957,6 +958,7 @@
   let concertCache = {};
   let adminNotes = "";
   let bandAddLog = [];
+  let visitLog = [];
   let newsExpanded = false;
   const NEWS_COLLAPSED_COUNT = 10;
   let ccLoadedOnce = false;
@@ -983,6 +985,7 @@
       document.getElementById("lock-screen").style.display = "none";
       document.getElementById("app").style.display = "block";
       unlocked = true;
+      ccLogVisit();
     } else {
       errEl.textContent = "Falsches Passwort.";
       errEl.classList.remove("hidden");
@@ -1017,6 +1020,7 @@
       document.getElementById("admin-pw-view").classList.add("hidden");
       document.getElementById("admin-notes-view").classList.remove("hidden");
       document.getElementById("admin-notes-textarea").value = adminNotes;
+      renderVisitStats();
     } else {
       errEl.textContent = "Falsches Passwort.";
       errEl.classList.remove("hidden");
@@ -1039,6 +1043,49 @@
     renderNews();
     if (!docRef) return;
     docRef.set({ events, photos, playlists, ideas, albums, trackedArtists, concertCache, adminNotes, spots, bandAddLog }, { merge: true }).catch((e) => console.error("Speichern fehlgeschlagen", e));
+  }
+
+  function renderVisitStats() {
+    const el = document.getElementById("admin-visit-stats");
+    if (!el) return;
+    const log = visitLog || [];
+    const now = Date.now();
+    const dayMs = 24 * 60 * 60 * 1000;
+    const todayCount = log.filter((v) => now - v.ts < dayMs).length;
+    const weekCount = log.filter((v) => now - v.ts < 7 * dayMs).length;
+    const total = log.length;
+    const recent = [...log].sort((a, b) => b.ts - a.ts).slice(0, 10);
+    const recentHtml = recent.length
+      ? recent.map((v) => `<div style="font-size:12.5px; color:var(--muted); padding:4px 0; border-bottom:1px solid rgba(240,239,236,0.08);">${new Date(v.ts).toLocaleString("de-DE", { dateStyle: "medium", timeStyle: "short" })} · ${escapeHtml(v.device)}</div>`).join("")
+      : `<div style="font-size:12.5px; color:var(--muted);">Noch keine Besuche erfasst.</div>`;
+    el.innerHTML = `
+      <div style="display:flex; gap:20px; flex-wrap:wrap; margin-bottom:12px;">
+        <div><div style="font-size:22px; font-weight:800; color:var(--amber);">${total}</div><div style="font-size:11.5px; color:var(--muted);">Gesamt</div></div>
+        <div><div style="font-size:22px; font-weight:800; color:var(--amber);">${weekCount}</div><div style="font-size:11.5px; color:var(--muted);">Letzte 7 Tage</div></div>
+        <div><div style="font-size:22px; font-weight:800; color:var(--amber);">${todayCount}</div><div style="font-size:11.5px; color:var(--muted);">Heute</div></div>
+      </div>
+      <div style="font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:0.05em; margin-bottom:4px;">Letzte Besuche</div>
+      ${recentHtml}`;
+  }
+
+  function ccDetectDevice() {
+    const ua = navigator.userAgent || "";
+    if (/iPad/.test(ua)) return "iPad";
+    if (/iPhone/.test(ua)) return "iPhone";
+    if (/Macintosh/.test(ua)) return "Mac";
+    if (/Android/.test(ua)) return "Android";
+    if (/Windows/.test(ua)) return "Windows";
+    return "Unbekannt";
+  }
+
+  function ccLogVisit() {
+    visitLog.push({ ts: Date.now(), device: ccDetectDevice() });
+    if (visitLog.length > 500) visitLog = visitLog.slice(-500);
+    // Eigener, isolierter Schreibvorgang (nur dieses Feld) – greift nicht in die übrigen
+    // Daten ein, selbst wenn die noch nicht aus Firebase geladen sind.
+    if (docRef) {
+      docRef.set({ visitLog }, { merge: true }).catch((e) => console.error("Besuch konnte nicht geloggt werden", e));
+    }
   }
 
   function fmtRelative(ts) {
@@ -2178,6 +2225,7 @@
         concertCache = data.concertCache || {};
         adminNotes = data.adminNotes || "";
         bandAddLog = data.bandAddLog || [];
+        visitLog = data.visitLog || [];
         spots = data.spots || [];
         renderAll();
       }, (err) => console.error("Firestore-Fehler", err));

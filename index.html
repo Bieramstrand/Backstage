@@ -690,6 +690,7 @@
           </div>
           <form class="entry-form hidden" id="album-form">
             <label class="full">Name<input type="text" id="al-name" placeholder="z. B. Wacken 2026" required /></label>
+            <label>Datum (optional)<input type="date" id="al-date" /></label>
             <label>Angelegt von
               <select id="al-who">
                 <option>Buggi</option>
@@ -965,6 +966,7 @@
   let editingIdeaId = null;
   let editingPlaylistId = null;
   let editingSpotId = null;
+  let editingAlbumId = null;
   let unlocked = false;
   const PASSWORD = "mbcc";
   const MAX_IMAGE_SIZE = 15 * 1024 * 1024;
@@ -1249,6 +1251,7 @@
         document.getElementById("ev-file-status").classList.add("hidden");
       }
       if (formId === "idea-form") { editingIdeaId = null; document.getElementById("idea-submit-btn").textContent = "Speichern"; }
+      if (formId === "album-form") { editingAlbumId = null; document.getElementById("album-submit-btn").textContent = "Speichern"; }
     });
   });
 
@@ -1474,14 +1477,15 @@
         ${coverEl}
         <div class="cap">
           <p class="name">${escapeHtml(al.name)}</p>
-          <p class="meta">${albumPhotos.length} Foto${albumPhotos.length === 1 ? "" : "s"} · ${escapeHtml(al.who)}</p>
+          <p class="meta">${albumPhotos.length} Foto${albumPhotos.length === 1 ? "" : "s"} · ${escapeHtml(al.who)}${al.date ? ` · ${fmtDate(al.date)}` : ""}</p>
         </div>
+        <button class="album-remove" data-edit-album="${al.id}" title="Album bearbeiten" style="right:38px;">✏️</button>
         <button class="album-remove" data-remove-album="${al.id}" title="Album löschen">✕</button>
       </div>`;
     }).join("");
     document.querySelectorAll("[data-open-album]").forEach((card) => {
       card.addEventListener("click", (e) => {
-        if (e.target.closest("[data-remove-album]")) return;
+        if (e.target.closest("[data-remove-album]") || e.target.closest("[data-edit-album]")) return;
         openAlbum(card.dataset.openAlbum);
       });
     });
@@ -1494,6 +1498,20 @@
         photos = photos.filter((x) => x.albumId !== albumId);
         persist();
         renderAlbums();
+      });
+    });
+    document.querySelectorAll("[data-edit-album]").forEach((b) => {
+      b.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const al = albums.find((x) => x.id === b.dataset.editAlbum);
+        if (!al) return;
+        editingAlbumId = al.id;
+        document.getElementById("al-name").value = al.name;
+        document.getElementById("al-date").value = al.date || "";
+        document.getElementById("al-who").value = al.who;
+        document.getElementById("album-submit-btn").textContent = "Aktualisieren";
+        document.getElementById("album-form").classList.remove("hidden");
+        document.getElementById("al-name").scrollIntoView({ behavior: "smooth", block: "center" });
       });
     });
   }
@@ -1747,8 +1765,16 @@
     e.preventDefault();
     const name = document.getElementById("al-name").value;
     const who = document.getElementById("al-who").value;
+    const date = document.getElementById("al-date").value || new Date().toISOString().slice(0, 10);
     if (!name) return;
-    albums.unshift({ id: uid(), createdAt: Date.now(), name, who, date: new Date().toISOString().slice(0, 10) });
+    if (editingAlbumId) {
+      const idx = albums.findIndex((x) => x.id === editingAlbumId);
+      if (idx !== -1) albums[idx] = { ...albums[idx], name, who, date };
+      editingAlbumId = null;
+      document.getElementById("album-submit-btn").textContent = "Speichern";
+    } else {
+      albums.unshift({ id: uid(), createdAt: Date.now(), name, who, date });
+    }
     persist();
     renderAlbums();
     e.target.reset();

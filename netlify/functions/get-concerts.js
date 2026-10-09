@@ -39,8 +39,8 @@ Antworte AUSSCHLIESSLICH als valides JSON-Objekt (ohne Markdown-Codeblocks) mit 
   "nearestShowInfo": "Falls isOnTour true ist und hasHamburgShow false: kurze Info zum nächstgelegenen oder nächsten bekannten Tourtermin (Ort/Venue), sonst leerer String",
   "nearestShowInGermany": true/false (true, falls dieser nächstgelegene Tourtermin in Deutschland stattfindet, sonst false),
   "nearestShowTicketUrl": "Direkter Link zur KONKRETEN Event-Seite dieses nächstgelegenen Tourtermins (nur falls nearestShowInGermany true ist), NIEMALS nur eine Anbieter-Startseite, sonst leerer String",
-  "supportActs": "Namen der Vorbands/Support-Acts bei der Hamburg-Show, durch Komma getrennt (z.B. 'Band A, Band B'), falls bekannt – sonst leerer String. NICHT erfinden, nur wenn tatsächlich eine Quelle das bestätigt.",
-  "nearestShowSupportActs": "Namen der Vorbands/Support-Acts beim nächstgelegenen Tourtermin (falls nearestShowDate gesetzt ist), durch Komma getrennt, falls bekannt – sonst leerer String",
+  "supportActs": "Namen ALLER weiteren bei der Hamburg-Show auftretenden Bands außer '${band}' selbst – also sowohl Vorbands/Support-Acts ALS AUCH Co-Headliner oder andere Bands, die als Teil derselben gemeinsamen Tour/desselben Konzerts auftreten, durch Komma getrennt (z.B. 'Band A, Band B'), falls bekannt – sonst leerer String. NICHT erfinden, nur wenn tatsächlich eine Quelle das bestätigt.",
+  "nearestShowSupportActs": "Namen ALLER weiteren auftretenden Bands (Vorbands/Support-Acts UND Co-Headliner) beim nächstgelegenen Tourtermin (falls nearestShowDate gesetzt ist), durch Komma getrennt, falls bekannt – sonst leerer String",
   "time": "Uhrzeit (Einlass oder Beginn) der Hamburg-Show im Format HH:MM, falls bekannt, sonst leerer String",
   "nearestShowTime": "Uhrzeit des nächstgelegenen Tourtermins im Format HH:MM, falls bekannt, sonst leerer String"
 }`;

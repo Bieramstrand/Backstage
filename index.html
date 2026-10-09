@@ -284,6 +284,19 @@
   .icon-btn { background: transparent; border: none; color: var(--muted); cursor: pointer; padding: 9px; border-radius: 8px; font-size: 19px; line-height: 1; }
   .icon-btn:hover { background: rgba(255,255,255,0.1); }
 
+  .event-actions-row {
+    display: flex; flex-wrap: wrap; gap: 6px;
+    margin-top: 14px; padding-top: 12px;
+    border-top: 1px solid rgba(240,239,236,0.1);
+  }
+  .event-tile-btn {
+    display: inline-flex; align-items: center; gap: 5px;
+    background: rgba(240,239,236,0.06); border: 1px solid rgba(240,239,236,0.14);
+    color: var(--muted); font-size: 12.5px; font-weight: 600;
+    padding: 7px 11px; border-radius: 10px; cursor: pointer; text-decoration: none;
+  }
+  .event-tile-btn:hover { background: rgba(232,163,61,0.15); color: var(--amber); border-color: rgba(232,163,61,0.3); }
+
   .photos-grid {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
@@ -1239,8 +1252,8 @@
         const dateLabel = ev.dateEnd && ev.dateEnd > ev.date ? `${fmtDate(ev.date)} – ${fmtDate(ev.dateEnd)}` : fmtDate(ev.date);
         return `
         <div class="ticket event-card ${dim ? "dim" : ""}" id="event-${ev.id}">
-          <div class="inner">
-            <div style="flex:1; min-width:0;">
+          <div class="inner" style="flex-direction:column; align-items:stretch;">
+            <div>
               <span class="event-tag">${escapeHtml(ev.type)}</span>
               <div class="event-title">${escapeHtml(ev.title)}</div>
               <div class="event-meta">
@@ -1252,13 +1265,13 @@
               ${ev.friends ? `<div class="event-note">👥 ${escapeHtml(ev.friends)}</div>` : ""}
               ${filesHtml}
             </div>
-            <div style="display:flex; gap:2px; flex-shrink:0;">
-              <a class="icon-btn" href="https://open.spotify.com/search/${encodeURIComponent(ev.title)}" target="_blank" rel="noreferrer" title="Auf Spotify suchen" style="text-decoration:none; display:inline-flex;">▶️</a>
-              ${ev.type === "Konzert" ? `<a class="icon-btn" href="https://www.setlist.fm/search?query=${encodeURIComponent(ev.title)}" target="_blank" rel="noreferrer" title="Setlist suchen (setlist.fm)" style="text-decoration:none; display:inline-flex;">📋</a>` : ""}
-              <button class="icon-btn" data-share-event="${ev.id}" title="Teilen (iMessage, WhatsApp, ...)">📤</button>
-              <button class="icon-btn" data-ical-event="${ev.id}" title="In Kalender eintragen">📅</button>
-              <button class="icon-btn" data-edit-event="${ev.id}" title="Bearbeiten">✏️</button>
-              <button class="icon-btn" data-remove-event="${ev.id}" title="Löschen">🗑️</button>
+            <div class="event-actions-row">
+              ${ev.type === "Konzert" ? `<a class="event-tile-btn" href="https://open.spotify.com/search/${encodeURIComponent(ev.title)}" target="_blank" rel="noreferrer">▶️ Spotify</a>` : ""}
+              ${ev.type === "Konzert" ? `<a class="event-tile-btn" href="https://www.setlist.fm/search?query=${encodeURIComponent(ev.title)}" target="_blank" rel="noreferrer">📋 Setlist</a>` : ""}
+              <button class="event-tile-btn" data-share-event="${ev.id}">📤 Teilen</button>
+              <button class="event-tile-btn" data-ical-event="${ev.id}">📅 Kalender</button>
+              <button class="event-tile-btn" data-edit-event="${ev.id}">✏️ Bearbeiten</button>
+              <button class="event-tile-btn" data-remove-event="${ev.id}">🗑️ Löschen</button>
             </div>
           </div>
           ${commentsHtml(ev.id, ev.comments)}

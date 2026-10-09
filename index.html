@@ -574,6 +574,7 @@
           <label>Titel<input type="text" id="ev-title" placeholder="z. B. Wacken Open Air" required /></label>
           <label>Datum<input type="date" id="ev-date" required /></label>
           <label>Bis (optional, für mehrtägige Termine)<input type="date" id="ev-date-end" /></label>
+          <label>Uhrzeit (optional)<input type="time" id="ev-time" /></label>
           <label>Ort<input type="text" id="ev-location" placeholder="Stadt / Location" /></label>
           <label>Art
             <select id="ev-type">
@@ -813,15 +814,33 @@
   }
 
   function downloadEventAsICS(ev) {
-    const dtStart = ev.date.replace(/-/g, "");
-    const lastDay = ev.dateEnd && ev.dateEnd > ev.date ? ev.dateEnd : ev.date;
-    const endObj = new Date(lastDay + "T00:00:00");
-    endObj.setDate(endObj.getDate() + 1); // DTEND ist exklusiv im iCal-Format
-    const dtEnd = endObj.toISOString().slice(0, 10).replace(/-/g, "");
+    const isMultiDay = ev.dateEnd && ev.dateEnd > ev.date;
+    const hasTime = ev.time && !isMultiDay;
     const now = new Date().toISOString().replace(/[-:]/g, "").split(".")[0] + "Z";
     const descParts = [];
     if (ev.note) descParts.push(ev.note);
     if (ev.friends) descParts.push(`Dabei: ${ev.friends}`);
+
+    let startLine, endLine;
+    if (hasTime) {
+      const pad = (n) => String(n).padStart(2, "0");
+      const [h, m] = ev.time.split(":").map(Number);
+      const startObj = new Date(ev.date + "T00:00:00");
+      startObj.setHours(h, m, 0, 0);
+      const endObj = new Date(startObj.getTime() + 2 * 60 * 60 * 1000); // Standard-Dauer: 2 Std.
+      const fmt = (d) => `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}T${pad(d.getHours())}${pad(d.getMinutes())}00`;
+      startLine = `DTSTART:${fmt(startObj)}`;
+      endLine = `DTEND:${fmt(endObj)}`;
+    } else {
+      const dtStart = ev.date.replace(/-/g, "");
+      const lastDay = isMultiDay ? ev.dateEnd : ev.date;
+      const endObj = new Date(lastDay + "T00:00:00");
+      endObj.setDate(endObj.getDate() + 1); // DTEND ist exklusiv im iCal-Format
+      const dtEnd = endObj.toISOString().slice(0, 10).replace(/-/g, "");
+      startLine = `DTSTART;VALUE=DATE:${dtStart}`;
+      endLine = `DTEND;VALUE=DATE:${dtEnd}`;
+    }
+
     const lines = [
       "BEGIN:VCALENDAR",
       "VERSION:2.0",
@@ -830,8 +849,8 @@
       "BEGIN:VEVENT",
       `UID:${ev.id}@backstage-bieramstrand`,
       `DTSTAMP:${now}`,
-      `DTSTART;VALUE=DATE:${dtStart}`,
-      `DTEND;VALUE=DATE:${dtEnd}`,
+      startLine,
+      endLine,
       `SUMMARY:${escapeICS(ev.title)}`,
     ];
     if (ev.location) lines.push(`LOCATION:${escapeICS(ev.location)}`);
@@ -1225,7 +1244,7 @@
               <span class="event-tag">${escapeHtml(ev.type)}</span>
               <div class="event-title">${escapeHtml(ev.title)}</div>
               <div class="event-meta">
-                <span>🗓️ ${dateLabel}</span>
+                <span>🗓️ ${dateLabel}${ev.time ? ` · 🕐 ${escapeHtml(ev.time)} Uhr` : ""}</span>
                 ${ev.location ? `<span>📍 <a href="https://maps.apple.com/?q=${encodeURIComponent(ev.location)}" target="_blank" rel="noreferrer" style="color:var(--paper); text-decoration:underline;">${escapeHtml(ev.location)}</a></span>` : ""}
                 <span>👤 ${escapeHtml(ev.who)}</span>
               </div>
@@ -1234,6 +1253,8 @@
               ${filesHtml}
             </div>
             <div style="display:flex; gap:2px; flex-shrink:0;">
+              <a class="icon-btn" href="https://open.spotify.com/search/${encodeURIComponent(ev.title)}" target="_blank" rel="noreferrer" title="Auf Spotify suchen" style="text-decoration:none; display:inline-flex;">▶️</a>
+              ${ev.type === "Konzert" ? `<a class="icon-btn" href="https://www.setlist.fm/search?query=${encodeURIComponent(ev.title)}" target="_blank" rel="noreferrer" title="Setlist suchen (setlist.fm)" style="text-decoration:none; display:inline-flex;">📋</a>` : ""}
               <button class="icon-btn" data-share-event="${ev.id}" title="Teilen (iMessage, WhatsApp, ...)">📤</button>
               <button class="icon-btn" data-ical-event="${ev.id}" title="In Kalender eintragen">📅</button>
               <button class="icon-btn" data-edit-event="${ev.id}" title="Bearbeiten">✏️</button>
@@ -1261,7 +1282,7 @@
         const ev = events.find((x) => x.id === b.dataset.shareEvent);
         if (!ev) return;
         const dateLabel = ev.dateEnd && ev.dateEnd > ev.date ? `${fmtDate(ev.date)} – ${fmtDate(ev.dateEnd)}` : fmtDate(ev.date);
-        const lines = [`🎫 ${ev.title}`, `📅 ${dateLabel}`];
+        const lines = [`🎫 ${ev.title}`, `📅 ${dateLabel}${ev.time ? ` · ${ev.time} Uhr` : ""}`];
         if (ev.location) lines.push(`📍 ${ev.location}`);
         if (ev.note) lines.push(ev.note);
         const shareText = lines.join("\n");
@@ -1318,6 +1339,7 @@
         document.getElementById("ev-title").value = ev.title;
         document.getElementById("ev-date").value = ev.date;
         document.getElementById("ev-date-end").value = ev.dateEnd || "";
+        document.getElementById("ev-time").value = ev.time || "";
         document.getElementById("ev-location").value = ev.location || "";
         document.getElementById("ev-type").value = ev.type;
         document.getElementById("ev-who").value = ev.who;
@@ -1505,6 +1527,7 @@
       title: document.getElementById("ev-title").value,
       date: document.getElementById("ev-date").value,
       dateEnd: document.getElementById("ev-date-end").value,
+      time: document.getElementById("ev-time").value,
       location: document.getElementById("ev-location").value,
       type: document.getElementById("ev-type").value,
       who: document.getElementById("ev-who").value,
@@ -1899,6 +1922,7 @@
       const spotifyUrl = `https://open.spotify.com/search/${encodeURIComponent(artist)}`;
       expandedEl.innerHTML = `
         <div class="cc-card-date">🗓️ ${escapeHtml(data.date)}${weekendTag} · ${escapeHtml(data.location || "")}</div>
+        ${data.supportActs ? `<div class="cc-card-info">👥 Vorbands: ${escapeHtml(data.supportActs)}</div>` : ""}
         ${data.info ? `<div class="cc-card-info">${escapeHtml(data.info)}</div>` : ""}
         <div style="display:flex; gap:6px; margin-top:8px; flex-wrap:wrap;">
           <a href="${escapeHtml(ticketUrl)}" target="_blank" rel="noreferrer" class="cc-ticket-btn">🎟️ Tickets</a>
@@ -1939,6 +1963,7 @@
         const showNearestTicketBtn = data.nearestShowInGermany && isSpecificNearestTicketUrl;
         expandedEl.innerHTML = `
           <div class="cc-card-info">Nicht in Hamburg, aber unterwegs: ${dateLabel}${escapeHtml(data.nearestShowInfo)}</div>
+          ${data.nearestShowSupportActs ? `<div class="cc-card-info">👥 Vorbands: ${escapeHtml(data.nearestShowSupportActs)}</div>` : ""}
           ${showNearestTicketBtn ? `<div style="margin-top:8px;"><a href="${escapeHtml(rawNearestTicketUrl)}" target="_blank" rel="noreferrer" class="cc-ticket-btn">🎟️ Tickets</a></div>` : ""}`;
       } else {
         statusEl.textContent = "Kein Termin bekannt";
@@ -1974,19 +1999,21 @@
 
   function ccQuickAdd(kind, artist, data) {
     const isoDate = ccParseGermanDate(data.date);
+    const noteText = data.supportActs ? `Vorbands: ${data.supportActs}` : "";
     if (kind === "event") {
       goToTab("timeline");
       document.getElementById("ev-title").value = `${artist} live`;
       if (isoDate) document.getElementById("ev-date").value = isoDate;
       document.getElementById("ev-location").value = data.location || "Hamburg";
       document.getElementById("ev-type").value = "Konzert";
+      document.getElementById("ev-note").value = noteText;
       document.getElementById("event-form").classList.remove("hidden");
       document.getElementById("ev-title").scrollIntoView({ behavior: "smooth", block: "center" });
     } else {
       goToTab("ideas");
       document.getElementById("idea-title").value = `${artist} live`;
       if (isoDate) document.getElementById("idea-date").value = isoDate;
-      document.getElementById("idea-note").value = data.location || "Hamburg";
+      document.getElementById("idea-note").value = [data.location || "Hamburg", noteText].filter(Boolean).join(" · ");
       document.getElementById("idea-form").classList.remove("hidden");
       document.getElementById("idea-title").scrollIntoView({ behavior: "smooth", block: "center" });
     }

@@ -435,9 +435,9 @@
     outline-offset: -1px;
   }
   .cc-card-header { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
-  .cc-card-artist { font-size: 13px; font-weight: 700; letter-spacing: 0.3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .cc-card-artist { font-size: 13px; font-weight: 700; letter-spacing: 0.3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1 1 auto; min-width: 0; }
   .has-hamburg .cc-card-artist { font-size: 15px; text-transform: uppercase; }
-  .cc-card-status { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1; text-align: right; margin-right: 4px; }
+  .cc-card-status { font-size: 12px; color: var(--muted); white-space: nowrap; flex-shrink: 0; text-align: right; margin-right: 4px; }
   .cc-card-date { font-size: 13px; font-weight: 700; color: var(--amber); }
   .cc-badge-hh { background: var(--amber); color: var(--bg); font-size: 10px; font-weight: 800; padding: 3px 8px; border-radius: 999px; flex-shrink: 0; }
   .cc-badge-tour { background: rgba(240,239,236,0.12); color: var(--paper); font-size: 10px; font-weight: 700; padding: 3px 8px; border-radius: 999px; flex-shrink: 0; }
@@ -1949,7 +1949,7 @@
     const names = str.split(",").map((s) => s.trim()).filter(Boolean);
     if (names.length === 0) return "";
     const chips = names.map((n) => `<a href="https://open.spotify.com/search/${encodeURIComponent(n)}" target="_blank" rel="noreferrer" class="cc-support-chip">▶️ ${escapeHtml(n)}</a>`).join("");
-    return `<div class="cc-card-info" style="margin-bottom:4px;">👥 Vorbands:</div><div class="cc-support-list">${chips}</div>`;
+    return `<div class="cc-card-info" style="margin-bottom:4px;">👥 Mit dabei:</div><div class="cc-support-list">${chips}</div>`;
   }
 
   function ccRemoveArtist(artist) {

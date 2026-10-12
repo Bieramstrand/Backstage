@@ -375,6 +375,7 @@
     transition: border-color 0.15s;
   }
   .news-item:hover { border-color: rgba(232,163,61,0.4); }
+  .news-item.news-band-alert { outline: 2px solid var(--amber); outline-offset: -1px; background: rgba(232,163,61,0.06); }
   .news-item .news-icon { font-size: 18px; flex-shrink: 0; margin-top: 1px; }
   .news-item .news-text { font-size: 14px; }
   .news-item .news-text b { font-weight: 600; }
@@ -449,6 +450,7 @@
     color: var(--paper); padding: 8px 14px; border-radius: 6px; font-size: 13px; font-weight: 600; text-decoration: none;
   }
   .cc-ticket-btn:hover { background: var(--amber); color: var(--bg); }
+  .cc-ticket-warning { font-size: 12px; font-weight: 700; color: #ff8a6b; margin-bottom: 4px; }
   .cc-support-list { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 4px; }
   .cc-support-chip {
     display: inline-flex; align-items: center; gap: 4px;
@@ -619,6 +621,7 @@
               <option>Marco</option>
             </select>
           </label>
+          <label class="full">Vorbands / Co-Headliner (optional)<input type="text" id="ev-support" placeholder="z. B. Band A, Band B" /></label>
           <label class="full">Notiz<input type="text" id="ev-note" placeholder="optional" /></label>
           <label class="full">Wer ist noch dabei (optional)<input type="text" id="ev-friends" placeholder="z. B. Marco, Bastian, Timo" /></label>
           <label class="full">Dateien anhängen (mehrere möglich, z. B. Ticket-PDF)<input type="file" id="ev-file" multiple /></label>
@@ -1108,26 +1111,66 @@
     return monday.getTime();
   }
 
-  function renderNews() {
-    const entries = [];
+  function renderWeeklyDigestEntries() {
+    // Wöchentlicher Rückblick über alles, was in der Woche neu dazukam (Bands, Plano-Termine, Ideen).
+    // Wird client-seitig berechnet, erscheint ab dem Montag nach Wochenende, und nur wenn in der
+    // Woche tatsächlich etwas passiert ist.
+    const weekMap = {};
+    function addTo(category, ts, label) {
+      if (!ts || !label) return;
+      const weekKey = ccWeekMondayKey(ts);
+      if (!weekMap[weekKey]) weekMap[weekKey] = { bands: [], events: [], ideas: [] };
+      weekMap[weekKey][category].push(label);
+    }
+    (bandAddLog || []).forEach((entry) => addTo("bands", entry.addedAt, entry.artist));
+    events.forEach((ev) => addTo("events", ev.createdAt, ev.title));
+    ideas.forEach((idea) => addTo("ideas", idea.createdAt, idea.title));
 
-    // Wöchentlicher Rückblick: welche Bands wurden diese Woche neu im Konzert-Radar eingetragen.
-    // Wird client-seitig aus bandAddLog berechnet, sobald die betreffende Woche (Mo–So) vorbei ist.
-    const weekGroups = {};
-    (bandAddLog || []).forEach((entry) => {
-      const weekKey = ccWeekMondayKey(entry.addedAt);
-      (weekGroups[weekKey] = weekGroups[weekKey] || []).push(entry.artist);
-    });
-    Object.entries(weekGroups).forEach(([weekKey, artists]) => {
+    const result = [];
+    Object.entries(weekMap).forEach(([weekKey, groups]) => {
       const mondayStart = Number(weekKey);
       const sundayEnd = mondayStart + 7 * 24 * 60 * 60 * 1000 - 1;
+      const nextMonday = mondayStart + 7 * 24 * 60 * 60 * 1000;
       if (sundayEnd > Date.now()) return; // Woche noch nicht vorbei
-      const uniqueArtists = [...new Set(artists)];
+      const uniqueBands = [...new Set(groups.bands)];
+      const uniqueEvents = [...new Set(groups.events)];
+      const uniqueIdeas = [...new Set(groups.ideas)];
+      if (uniqueBands.length === 0 && uniqueEvents.length === 0 && uniqueIdeas.length === 0) return; // nichts passiert -> keine News
+
+      const lineParts = [];
+      if (uniqueBands.length) lineParts.push(`🎸 <b>Konzerte:</b> ${uniqueBands.map(escapeHtml).join(", ")}`);
+      if (uniqueEvents.length) lineParts.push(`🎫 <b>Plano:</b> ${uniqueEvents.map(escapeHtml).join(", ")}`);
+      if (uniqueIdeas.length) lineParts.push(`💡 <b>Ideen:</b> ${uniqueIdeas.map(escapeHtml).join(", ")}`);
+      const plainParts = [];
+      if (uniqueBands.length) plainParts.push(`🎸 Konzerte: ${uniqueBands.join(", ")}`);
+      if (uniqueEvents.length) plainParts.push(`🎫 Plano: ${uniqueEvents.join(", ")}`);
+      if (uniqueIdeas.length) plainParts.push(`💡 Ideen: ${uniqueIdeas.join(", ")}`);
+      const weekLabel = new Date(mondayStart).toLocaleDateString("de-DE", { day: "2-digit", month: "short" });
+
+      result.push({
+        ts: nextMonday,
+        icon: "📰",
+        html: `<b>Wochenrückblick (ab ${weekLabel}):</b><br>${lineParts.join("<br>")}`,
+        tab: "news",
+        isDigest: true,
+        shareText: `📰 Wochenrückblick (ab ${weekLabel}):\n${plainParts.join("\n")}`,
+      });
+    });
+    return result;
+  }
+
+  function renderNews() {
+    const entries = [...renderWeeklyDigestEntries()];
+
+    (bandAddLog || []).forEach((entry) => {
+      if (!entry.addedAt) return;
+      const spotifyUrl = `https://open.spotify.com/search/${encodeURIComponent(entry.artist)}/artists`;
       entries.push({
-        ts: sundayEnd,
+        ts: entry.addedAt,
         icon: "🎸",
-        html: `<b>Wochenrückblick:</b> Diese Woche neu im Konzert-Radar: <b>${uniqueArtists.map(escapeHtml).join(", ")}</b>`,
+        html: `Neue Band im Konzert-Radar: <b>${escapeHtml(entry.artist)}</b> · <a href="${spotifyUrl}" target="_blank" rel="noreferrer" style="color:var(--amber); text-decoration:underline;">▶️ Spotify</a>`,
         tab: "concerts",
+        isBandAlert: true,
       });
     });
 
@@ -1199,13 +1242,13 @@
     }
     empty.classList.add("hidden");
     let html = recent.map((e, i) => `
-      <div class="news-item" data-news-index="${i}" style="cursor:pointer;">
+      <div class="news-item${e.isBandAlert ? " news-band-alert" : ""}" data-news-index="${i}" style="cursor:${e.isDigest ? "default" : "pointer"};">
         <span class="news-icon">${e.icon}</span>
         <div style="flex:1; min-width:0;">
           <div class="news-text">${e.html}</div>
           <div class="news-time">${fmtRelative(e.ts)}</div>
         </div>
-        <span class="news-link-icon">›</span>
+        ${e.isDigest ? `<button type="button" class="icon-btn" data-news-share="${i}" title="Teilen (iMessage, WhatsApp, ...)" style="flex-shrink:0;">📤</button>` : `<span class="news-link-icon">›</span>`}
       </div>`).join("");
 
     const remaining = all.length - recent.length;
@@ -1225,9 +1268,10 @@
     }
 
     document.querySelectorAll("[data-news-index]").forEach((el) => {
-      el.addEventListener("click", () => {
+      el.addEventListener("click", (e) => {
+        if (e.target.closest("[data-news-share]") || e.target.closest("a")) return;
         const entry = recent[Number(el.dataset.newsIndex)];
-        if (!entry) return;
+        if (!entry || entry.isDigest) return;
         goToTab(entry.tab);
         if (entry.tab === "photos" && entry.albumId) openAlbum(entry.albumId);
         setTimeout(() => {
@@ -1237,6 +1281,24 @@
           target.classList.add("news-highlight");
           setTimeout(() => target.classList.remove("news-highlight"), 1800);
         }, entry.tab === "photos" && entry.albumId ? 120 : 60);
+      });
+    });
+    document.querySelectorAll("[data-news-share]").forEach((b) => {
+      b.addEventListener("click", async (e) => {
+        e.stopPropagation();
+        const entry = recent[Number(b.dataset.newsShare)];
+        if (!entry) return;
+        const text = entry.shareText || entry.html.replace(/<[^>]+>/g, "");
+        if (navigator.share) {
+          try { await navigator.share({ title: "Backstage Wochenrückblick", text }); } catch (err) {}
+        } else if (navigator.clipboard) {
+          try {
+            await navigator.clipboard.writeText(text);
+            alert("In die Zwischenablage kopiert – jetzt in WhatsApp/iMessage einfügen.");
+          } catch (err) { alert(text); }
+        } else {
+          alert(text);
+        }
       });
     });
   }
@@ -1353,13 +1415,14 @@
                 ${ev.location ? `<span>📍 <a href="https://maps.apple.com/?q=${encodeURIComponent(ev.location)}" target="_blank" rel="noreferrer" style="color:var(--paper); text-decoration:underline;">${escapeHtml(ev.location)}</a></span>` : ""}
                 <span>👤 ${escapeHtml(ev.who)}</span>
               </div>
+              ${ccRenderSupportActsHtml(ev.supportActs)}
               ${ev.note ? `<div class="event-note">${escapeHtml(ev.note)}</div>` : ""}
               ${ev.friends ? `<div class="event-note">👥 ${escapeHtml(ev.friends)}</div>` : ""}
               ${filesHtml}
             </div>
             <div class="event-actions-row">
               ${ev.location ? `<a class="event-tile-btn" href="https://www.hvv.de/de/fahrplaene/fahrplanauskunft?ziel=${encodeURIComponent(ev.location)}" target="_blank" rel="noreferrer">🚍 HVV</a>` : ""}
-              ${ev.type === "Konzert" ? `<a class="event-tile-btn" href="https://open.spotify.com/search/${encodeURIComponent(ev.title)}" target="_blank" rel="noreferrer">▶️ Spotify</a>` : ""}
+              ${ev.type === "Konzert" ? `<a class="event-tile-btn" href="https://open.spotify.com/search/${encodeURIComponent(ev.title)}/artists" target="_blank" rel="noreferrer">▶️ Spotify</a>` : ""}
               ${ev.type === "Konzert" ? `<a class="event-tile-btn" href="https://www.setlist.fm/search?query=${encodeURIComponent(ev.title)}" target="_blank" rel="noreferrer">📋 Setlist</a>` : ""}
               <button class="event-tile-btn" data-share-event="${ev.id}">📤 Teilen</button>
               <button class="event-tile-btn" data-ical-event="${ev.id}">📅 Kalender</button>
@@ -1446,6 +1509,7 @@
         document.getElementById("ev-date").value = ev.date;
         document.getElementById("ev-date-end").value = ev.dateEnd || "";
         document.getElementById("ev-time").value = ev.time || "";
+        document.getElementById("ev-support").value = ev.supportActs || "";
         document.getElementById("ev-location").value = ev.location || "";
         document.getElementById("ev-type").value = ev.type;
         document.getElementById("ev-who").value = ev.who;
@@ -1652,6 +1716,7 @@
       location: document.getElementById("ev-location").value,
       type: document.getElementById("ev-type").value,
       who: document.getElementById("ev-who").value,
+      supportActs: document.getElementById("ev-support").value,
       note: document.getElementById("ev-note").value,
       friends: document.getElementById("ev-friends").value,
     };
@@ -2022,7 +2087,7 @@
     if (!str) return "";
     const names = str.split(",").map((s) => s.trim()).filter(Boolean);
     if (names.length === 0) return "";
-    const chips = names.map((n) => `<a href="https://open.spotify.com/search/${encodeURIComponent(n)}" target="_blank" rel="noreferrer" class="cc-support-chip">▶️ ${escapeHtml(n)}</a>`).join("");
+    const chips = names.map((n) => `<a href="https://open.spotify.com/search/${encodeURIComponent(n)}/artists" target="_blank" rel="noreferrer" class="cc-support-chip">▶️ ${escapeHtml(n)}</a>`).join("");
     return `<div class="cc-card-info" style="margin-bottom:4px;">👥 Mit dabei:</div><div class="cc-support-list">${chips}</div>`;
   }
 
@@ -2069,11 +2134,12 @@
       const ticketUrl = isSpecificTicketUrl
         ? rawTicketUrl
         : `https://www.google.com/search?q=${encodeURIComponent(`${artist} ${data.location || "Hamburg"} tickets`)}`;
-      const spotifyUrl = `https://open.spotify.com/search/${encodeURIComponent(artist)}`;
+      const spotifyUrl = `https://open.spotify.com/search/${encodeURIComponent(artist)}/artists`;
       const setlistUrl = `https://www.setlist.fm/search?query=${encodeURIComponent(artist)}`;
       const hvvUrl = `https://www.hvv.de/de/fahrplaene/fahrplanauskunft?ziel=${encodeURIComponent(data.location || "Hamburg")}`;
       expandedEl.innerHTML = `
         <div class="cc-card-date">🗓️ ${escapeHtml(data.date)}${data.time ? ` · 🕐 ${escapeHtml(data.time)}` : ""}${weekendTag} · ${escapeHtml(data.location || "")}</div>
+        ${data.ticketAvailability === "ausverkauft" ? `<div class="cc-ticket-warning">🔴 Ausverkauft</div>` : data.ticketAvailability === "wenige" ? `<div class="cc-ticket-warning">⚠️ Nur noch wenige Tickets</div>` : ""}
         ${ccRenderSupportActsHtml(data.supportActs)}
         ${data.info ? `<div class="cc-card-info">${escapeHtml(data.info)}</div>` : ""}
         <div style="display:flex; gap:6px; margin-top:8px; flex-wrap:wrap;">
@@ -2102,7 +2168,11 @@
       card.classList.toggle("cc-ontour", !!tourInfoValid);
       card.dataset.ccDate = tourInfoValid ? (nearestIso || "") : "";
       if (tourInfoValid) {
-        statusEl.innerHTML = `<span class="cc-badge-tour">🚌 AUF TOUR</span>`;
+        statusEl.innerHTML = `<span class="cc-badge-tour">🚌 AUF TOUR</span> <button type="button" class="cc-inline-remove" data-cc-remove="${escapeHtml(artist)}" title="Band entfernen">✕</button>`;
+        const tourRemoveBtn = statusEl.querySelector("[data-cc-remove]");
+        if (tourRemoveBtn) tourRemoveBtn.addEventListener("click", () => {
+          if (confirm(`"${artist}" wirklich aus dem Radar entfernen?`)) ccRemoveArtist(artist);
+        });
         expandedEl.classList.remove("hidden");
         const dateLabel = data.nearestShowDate ? `${escapeHtml(data.nearestShowDate)} – ` : "";
         const rawNearestTicketUrl = data.nearestShowTicketUrl ? data.nearestShowTicketUrl.trim() : "";
@@ -2166,7 +2236,7 @@
       document.getElementById("ev-location").value = data.location || "Hamburg";
       document.getElementById("ev-type").value = "Konzert";
       document.getElementById("ev-time").value = data.time || "";
-      document.getElementById("ev-note").value = noteText;
+      document.getElementById("ev-support").value = data.supportActs || "";
       document.getElementById("event-form").classList.remove("hidden");
       document.getElementById("ev-title").scrollIntoView({ behavior: "smooth", block: "center" });
     } else {

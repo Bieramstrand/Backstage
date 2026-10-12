@@ -34,6 +34,7 @@ Antworte AUSSCHLIESSLICH als valides JSON-Objekt (ohne Markdown-Codeblocks) mit 
   "location": "Venue Name & Stadt (z.B. Markthalle Hamburg)",
   "info": "Kurze Info zur Show oder alternative Termine in der Nähe",
   "ticketUrl": "Direkter Link zur KONKRETEN Event-Seite dieses Konzerts (z.B. von Eventim, Ticketmaster, der Venue-Website) – NIEMALS nur die Startseite eines Anbieters (z.B. NICHT 'eventim.de' allein). Falls kein echter, konkreter Event-Link gefunden wird, leerer String.",
+  "ticketAvailability": "'wenige' falls eine Quelle explizit meldet, dass nur noch wenige Tickets/limitiertes Kontingent verfügbar ist, 'ausverkauft' falls als ausverkauft gemeldet, sonst leerer String. NICHT raten – nur wenn tatsächlich eine Quelle das so nennt.",
   "isOnTour": true/false (true, falls die Band IRGENDWO in Deutschland/Europa aktuell oder demnächst einen Termin hat, auch wenn NICHT in Hamburg – dieses Feld möglichst nicht auf false setzen, ohne wirklich gründlich gesucht zu haben),
   "nearestShowDate": "TT.MM.JJJJ des nächstgelegenen/nächsten bekannten Tourtermins, falls isOnTour true ist, sonst leerer String",
   "nearestShowInfo": "Falls isOnTour true ist und hasHamburgShow false: kurze Info zum nächstgelegenen oder nächsten bekannten Tourtermin (Ort/Venue), sonst leerer String",

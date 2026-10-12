@@ -1164,7 +1164,7 @@
 
     (bandAddLog || []).forEach((entry) => {
       if (!entry.addedAt) return;
-      const spotifyUrl = `https://open.spotify.com/search/${encodeURIComponent(entry.artist)}/artists`;
+      const spotifyUrl = `https://open.spotify.com/search/${encodeURIComponent(entry.artist)}`;
       entries.push({
         ts: entry.addedAt,
         icon: "🎸",
@@ -1422,7 +1422,7 @@
             </div>
             <div class="event-actions-row">
               ${ev.location ? `<a class="event-tile-btn" href="https://www.hvv.de/de/fahrplaene/fahrplanauskunft?ziel=${encodeURIComponent(ev.location)}" target="_blank" rel="noreferrer">🚍 HVV</a>` : ""}
-              ${ev.type === "Konzert" ? `<a class="event-tile-btn" href="https://open.spotify.com/search/${encodeURIComponent(ev.title)}/artists" target="_blank" rel="noreferrer">▶️ Spotify</a>` : ""}
+              ${ev.type === "Konzert" ? `<a class="event-tile-btn" href="https://open.spotify.com/search/${encodeURIComponent(ev.title)}" target="_blank" rel="noreferrer">▶️ Spotify</a>` : ""}
               ${ev.type === "Konzert" ? `<a class="event-tile-btn" href="https://www.setlist.fm/search?query=${encodeURIComponent(ev.title)}" target="_blank" rel="noreferrer">📋 Setlist</a>` : ""}
               <button class="event-tile-btn" data-share-event="${ev.id}">📤 Teilen</button>
               <button class="event-tile-btn" data-ical-event="${ev.id}">📅 Kalender</button>
@@ -2087,7 +2087,7 @@
     if (!str) return "";
     const names = str.split(",").map((s) => s.trim()).filter(Boolean);
     if (names.length === 0) return "";
-    const chips = names.map((n) => `<a href="https://open.spotify.com/search/${encodeURIComponent(n)}/artists" target="_blank" rel="noreferrer" class="cc-support-chip">▶️ ${escapeHtml(n)}</a>`).join("");
+    const chips = names.map((n) => `<a href="https://open.spotify.com/search/${encodeURIComponent(n)}" target="_blank" rel="noreferrer" class="cc-support-chip">▶️ ${escapeHtml(n)}</a>`).join("");
     return `<div class="cc-card-info" style="margin-bottom:4px;">👥 Mit dabei:</div><div class="cc-support-list">${chips}</div>`;
   }
 
@@ -2134,7 +2134,7 @@
       const ticketUrl = isSpecificTicketUrl
         ? rawTicketUrl
         : `https://www.google.com/search?q=${encodeURIComponent(`${artist} ${data.location || "Hamburg"} tickets`)}`;
-      const spotifyUrl = `https://open.spotify.com/search/${encodeURIComponent(artist)}/artists`;
+      const spotifyUrl = `https://open.spotify.com/search/${encodeURIComponent(artist)}`;
       const setlistUrl = `https://www.setlist.fm/search?query=${encodeURIComponent(artist)}`;
       const hvvUrl = `https://www.hvv.de/de/fahrplaene/fahrplanauskunft?ziel=${encodeURIComponent(data.location || "Hamburg")}`;
       expandedEl.innerHTML = `

@@ -319,9 +319,23 @@
     position: absolute; top: 8px; right: 8px;
     background: rgba(33,24,41,0.8); color: var(--paper);
     border: none; border-radius: 999px; width: 26px; height: 26px;
-    cursor: pointer; opacity: 0; transition: opacity 0.15s;
+    cursor: pointer; opacity: 1; transition: opacity 0.15s;
   }
-  .photo-card:hover .photo-remove { opacity: 1; }
+  @media (hover: hover) {
+    .photo-remove { opacity: 0; }
+    .photo-card:hover .photo-remove { opacity: 1; }
+  }
+  .photo-cover-btn {
+    position: absolute; top: 8px; left: 8px;
+    background: rgba(33,24,41,0.8); color: var(--paper);
+    border: none; border-radius: 999px; width: 26px; height: 26px;
+    cursor: pointer; opacity: 1; transition: opacity 0.15s; font-size: 14px;
+  }
+  .photo-cover-btn.is-cover { color: var(--amber); }
+  @media (hover: hover) {
+    .photo-cover-btn:not(.is-cover) { opacity: 0; }
+    .photo-card:hover .photo-cover-btn { opacity: 1; }
+  }
 
   .album-card {
     position: relative;
@@ -331,7 +345,9 @@
     border: 1px solid rgba(240,239,236,0.1);
     cursor: pointer;
   }
-  .album-card:hover { border-color: rgba(232,163,61,0.4); }
+  @media (hover: hover) {
+    .album-card:hover { border-color: rgba(232,163,61,0.4); }
+  }
   .album-cover {
     width: 100%; aspect-ratio: 1/1; object-fit: cover; display: block;
     background: rgba(240,239,236,0.05);
@@ -347,9 +363,12 @@
     position: absolute; top: 8px; right: 8px;
     background: rgba(33,24,41,0.8); color: var(--paper);
     border: none; border-radius: 999px; width: 26px; height: 26px;
-    cursor: pointer; opacity: 0; transition: opacity 0.15s;
+    cursor: pointer; opacity: 1; transition: opacity 0.15s;
   }
-  .album-card:hover .album-remove { opacity: 1; }
+  @media (hover: hover) {
+    .album-remove { opacity: 0; }
+    .album-card:hover .album-remove { opacity: 1; }
+  }
 
   .idea-card {
     padding: 16px; border-radius: 10px; background: var(--bg-soft);
@@ -425,7 +444,6 @@
   .cc-artist-card.has-hamburg {
     padding: 14px 16px;
     background: rgba(232,163,61,0.06);
-    border-color: rgba(232,163,61,0.3);
   }
   .cc-artist-card.has-hamburg::before {
     content: ''; position: absolute; top: 0; left: 0; width: 3px; height: 100%;
@@ -1534,6 +1552,8 @@
       return;
     }
     empty.classList.add("hidden");
+    const currentAlbum = albums.find((a) => a.id === currentAlbumId);
+    const coverId = currentAlbum ? (currentAlbum.coverPhotoId || albumPhotos[0].id) : null;
     grid.innerHTML = albumPhotos.map((ph) => `
       <div class="photo-card" id="photo-${ph.id}">
         ${ph.type === "video"
@@ -1543,12 +1563,23 @@
           ${ph.caption ? `<p class="caption">${escapeHtml(ph.caption)}</p>` : ""}
           <p class="meta">${ph.date ? fmtDate(ph.date) + " · " : ""}${escapeHtml(ph.who)}</p>
         </div>
+        <button class="photo-cover-btn${ph.id === coverId ? " is-cover" : ""}" data-set-cover="${ph.id}" title="${ph.id === coverId ? "Aktuelles Titelbild" : "Als Titelbild festlegen"}">${ph.id === coverId ? "⭐" : "☆"}</button>
         <button class="photo-remove" data-remove-photo="${ph.id}">✕</button>
       </div>`).join("");
     document.querySelectorAll("[data-remove-photo]").forEach((b) => {
       b.addEventListener("click", () => {
         if (!confirm("Wirklich löschen?")) return;
         photos = photos.filter((x) => x.id !== b.dataset.removePhoto);
+        persist();
+        renderPhotos();
+        renderAlbums();
+      });
+    });
+    document.querySelectorAll("[data-set-cover]").forEach((b) => {
+      b.addEventListener("click", () => {
+        const album = albums.find((a) => a.id === currentAlbumId);
+        if (!album) return;
+        album.coverPhotoId = b.dataset.setCover;
         persist();
         renderPhotos();
         renderAlbums();
@@ -1576,24 +1607,35 @@
       return;
     }
     empty.classList.add("hidden");
-    grid.innerHTML = albums.map((al) => {
-      const albumPhotos = photos.filter((ph) => ph.albumId === al.id);
-      const cover = albumPhotos[0];
-      const coverEl = cover
-        ? (cover.type === "video"
-            ? `<div class="album-cover-empty">🎬</div>`
-            : `<img class="album-cover" src="${escapeHtml(cover.url)}" alt="${escapeHtml(al.name)}" />`)
-        : `<div class="album-cover-empty">🖼️</div>`;
-      return `
-      <div class="album-card" data-open-album="${al.id}" id="album-${al.id}">
-        ${coverEl}
-        <div class="cap">
-          <p class="name">${escapeHtml(al.name)}</p>
-          <p class="meta">${albumPhotos.length} Foto${albumPhotos.length === 1 ? "" : "s"} · ${escapeHtml(al.who)}${al.date ? ` · ${fmtDate(al.date)}` : ""}</p>
-        </div>
-        <button class="album-remove" data-edit-album="${al.id}" title="Album bearbeiten" style="right:38px;">✏️</button>
-        <button class="album-remove" data-remove-album="${al.id}" title="Album löschen">✕</button>
-      </div>`;
+
+    function albumYear(al) {
+      const src = al.date || (al.createdAt ? new Date(al.createdAt).toISOString().slice(0, 10) : "");
+      return src ? src.slice(0, 4) : "Ohne Datum";
+    }
+    const years = [...new Set(albums.map(albumYear))].sort((a, b) => b.localeCompare(a));
+
+    grid.innerHTML = years.map((year) => {
+      const yearAlbums = albums.filter((al) => albumYear(al) === year);
+      const cards = yearAlbums.map((al) => {
+        const albumPhotos = photos.filter((ph) => ph.albumId === al.id);
+        const cover = (al.coverPhotoId && albumPhotos.find((p) => p.id === al.coverPhotoId)) || albumPhotos[0];
+        const coverEl = cover
+          ? (cover.type === "video"
+              ? `<div class="album-cover-empty">🎬</div>`
+              : `<img class="album-cover" src="${escapeHtml(cover.url)}" alt="${escapeHtml(al.name)}" />`)
+          : `<div class="album-cover-empty">🖼️</div>`;
+        return `
+        <div class="album-card" data-open-album="${al.id}" id="album-${al.id}">
+          ${coverEl}
+          <div class="cap">
+            <p class="name">${escapeHtml(al.name)}</p>
+            <p class="meta">${albumPhotos.length} Foto${albumPhotos.length === 1 ? "" : "s"} · ${escapeHtml(al.who)}${al.date ? ` · ${fmtDate(al.date)}` : ""}</p>
+          </div>
+          <button class="album-remove" data-edit-album="${al.id}" title="Album bearbeiten" style="right:38px;">✏️</button>
+          <button class="album-remove" data-remove-album="${al.id}" title="Album löschen">✕</button>
+        </div>`;
+      }).join("");
+      return `<div class="group-label" style="grid-column:1/-1;"><span>📅</span>${escapeHtml(year)}</div>${cards}`;
     }).join("");
     document.querySelectorAll("[data-open-album]").forEach((card) => {
       card.addEventListener("click", (e) => {

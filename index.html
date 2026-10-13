@@ -359,16 +359,6 @@
   .album-card .cap { padding: 10px 12px; }
   .album-card .cap .name { font-size: 14px; font-weight: 600; margin: 0; }
   .album-card .cap .meta { font-size: 12px; color: var(--muted); margin: 3px 0 0; }
-  .album-remove {
-    position: absolute; top: 8px; right: 8px;
-    background: rgba(33,24,41,0.8); color: var(--paper);
-    border: none; border-radius: 999px; width: 26px; height: 26px;
-    cursor: pointer; opacity: 1; transition: opacity 0.15s;
-  }
-  @media (hover: hover) {
-    .album-remove { opacity: 0; }
-    .album-card:hover .album-remove { opacity: 1; }
-  }
 
   .idea-card {
     padding: 16px; border-radius: 10px; background: var(--bg-soft);
@@ -1628,11 +1618,17 @@
         <div class="album-card" data-open-album="${al.id}" id="album-${al.id}">
           ${coverEl}
           <div class="cap">
-            <p class="name">${escapeHtml(al.name)}</p>
-            <p class="meta">${albumPhotos.length} Foto${albumPhotos.length === 1 ? "" : "s"} · ${escapeHtml(al.who)}${al.date ? ` · ${fmtDate(al.date)}` : ""}</p>
+            <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:6px;">
+              <div style="min-width:0;">
+                <p class="name">${escapeHtml(al.name)}</p>
+                <p class="meta">${albumPhotos.length} Foto${albumPhotos.length === 1 ? "" : "s"} · ${escapeHtml(al.who)}${al.date ? ` · ${fmtDate(al.date)}` : ""}</p>
+              </div>
+              <div style="display:flex; gap:2px; flex-shrink:0;">
+                <button class="icon-btn" data-edit-album="${al.id}" title="Album bearbeiten" style="padding:5px; font-size:15px;">✏️</button>
+                <button class="icon-btn" data-remove-album="${al.id}" title="Album löschen" style="padding:5px; font-size:15px;">✕</button>
+              </div>
+            </div>
           </div>
-          <button class="album-remove" data-edit-album="${al.id}" title="Album bearbeiten" style="right:38px;">✏️</button>
-          <button class="album-remove" data-remove-album="${al.id}" title="Album löschen">✕</button>
         </div>`;
       }).join("");
       return `<div class="group-label" style="grid-column:1/-1;"><span>📅</span>${escapeHtml(year)}</div>${cards}`;

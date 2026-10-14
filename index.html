@@ -419,6 +419,7 @@
   .nearby-food .nearby-meta { color: var(--muted); font-size: 12px; }
   .spot-img { width: 64px; height: 64px; object-fit: cover; border-radius: 8px; flex-shrink: 0; background: rgba(240,239,236,0.06); }
   .leaflet-container { font-family: inherit; background: #18181a; }
+  #spots-map .leaflet-tile-pane { filter: invert(1) hue-rotate(180deg) brightness(0.92) contrast(0.88) saturate(0.55); }
   .leaflet-popup-content { color: #18181a; font-size: 13px; line-height: 1.4; }
   .leaflet-popup-content a { color: #b36f00; }
 
@@ -744,7 +745,7 @@
           <div class="left"><span>🍽️</span><h2>Was essen wir?</h2><span class="count-badge" id="spot-count">0</span></div>
           <button class="btn-add" id="toggle-spot-form">＋ Location</button>
         </div>
-        <p style="font-size:14px; color:var(--muted); margin:-8px 0 20px;">Restaurants, Cafés, Bars und Imbisse, die wir ausprobieren wollen oder schon gut fanden.</p>
+        <p style="font-size:14px; color:var(--muted); margin:-8px 0 20px;">Restaurants, Bars, Craftbeer Bars, Burger und Imbisse, die wir ausprobieren wollen oder schon gut fanden.</p>
         <div class="cc-add-artist-box">
           <form id="spot-search-form">
             <div class="cc-input-row">
@@ -766,10 +767,10 @@
           <label>Art
             <select id="spot-type">
               <option>Restaurant</option>
-              <option>Café</option>
               <option>Bar</option>
+              <option>Craftbeer Bar</option>
               <option>Imbiss</option>
-              <option>Biergarten</option>
+              <option>Burger</option>
               <option>Sonstiges</option>
             </select>
           </label>
@@ -923,8 +924,8 @@
     <nav class="tabs">
       <button data-tab="timeline"><span class="bn-icon">🎫</span><span class="bn-label">Plano</span></button>
       <button data-tab="ideas"><span class="bn-icon">💡</span><span class="bn-label">Ideen</span></button>
-      <button data-tab="food"><span class="bn-icon">🍽️</span><span class="bn-label">Essen</span></button>
       <button data-tab="photos"><span class="bn-icon">📷</span><span class="bn-label">Foto/Video</span></button>
+      <button data-tab="food"><span class="bn-icon">🍽️</span><span class="bn-label">Essen</span></button>
       <button data-tab="concerts"><span class="bn-icon">🎸</span><span class="bn-label">Konzerte</span></button>
     </nav>
 
@@ -2207,7 +2208,7 @@
         if (!sp) return;
         editingSpotId = sp.id;
         document.getElementById("spot-name").value = sp.name;
-        document.getElementById("spot-type").value = sp.type || "Restaurant";
+        setSpotTypeForEdit(sp.type);
         document.getElementById("spot-street").value = sp.street || "";
         document.getElementById("spot-zip").value = sp.zip || "";
         document.getElementById("spot-city").value = sp.city || "";
@@ -2395,9 +2396,10 @@
     try { await loadLeaflet(); } catch (err) { status.textContent = "Die Karte konnte nicht geladen werden."; return; }
     if (!spotsMap) {
       spotsMap = L.map("spots-map", { scrollWheelZoom: false }).setView([51.1, 10.4], 6);
-      L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
-        maxZoom: 19, subdomains: "abcd",
-        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> Mitwirkende &copy; <a href="https://carto.com/attributions">CARTO</a>',
+      // OpenStreetMap Standardkacheln brauchen keinen Schlüssel. Das dunkle Aussehen kommt über einen CSS Filter (siehe .leaflet-tile-pane unten).
+      L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        maxZoom: 19,
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> Mitwirkende',
       }).addTo(spotsMap);
       spotsMapLayer = L.layerGroup().addTo(spotsMap);
     }
@@ -2475,7 +2477,7 @@
     editingSpotId = null;
     document.getElementById("spot-submit-btn").textContent = "Speichern";
     document.getElementById("spot-name").value = r.name;
-    document.getElementById("spot-type").value = r.type;
+    setSpotTypeForNew(r.type);
     document.getElementById("spot-street").value = r.street;
     document.getElementById("spot-zip").value = r.zip;
     document.getElementById("spot-city").value = r.city;
@@ -2541,6 +2543,27 @@
     el.style.color = isErr ? "var(--err)" : "var(--muted)";
   }
   let spotImageRemove = false;
+  const SPOT_TYPES = ["Restaurant", "Bar", "Craftbeer Bar", "Imbiss", "Burger", "Sonstiges"];
+  // Bestehende Einträge mit einer früheren Art (z. B. Café, Biergarten) behalten ihre Art beim Bearbeiten,
+  // dafür wird die Art nur für diesen Eintrag vorübergehend in der Auswahl ergänzt.
+  function setSpotTypeForEdit(t) {
+    const sel = document.getElementById("spot-type");
+    [...sel.options].filter((o) => o.dataset.temp).forEach((o) => o.remove());
+    const value = t || "Restaurant";
+    if (![...sel.options].some((o) => o.value === value)) {
+      const o = document.createElement("option");
+      o.textContent = value;
+      o.dataset.temp = "1";
+      sel.appendChild(o);
+    }
+    sel.value = value;
+  }
+  // Treffer aus der Suche: Arten, die es nicht mehr gibt, werden zu "Sonstiges"
+  function setSpotTypeForNew(t) {
+    const sel = document.getElementById("spot-type");
+    [...sel.options].filter((o) => o.dataset.temp).forEach((o) => o.remove());
+    sel.value = SPOT_TYPES.includes(t) ? t : "Sonstiges";
+  }
   function resetSpotImageUi() {
     spotImageRemove = false;
     document.getElementById("spot-image-current").classList.add("hidden");
@@ -2608,7 +2631,7 @@
       if (!resp.ok) throw new Error("Server antwortet mit " + resp.status);
       const d = await resp.json();
       if (d.name) document.getElementById("spot-name").value = d.name;
-      if (d.type && ["Restaurant", "Café", "Bar", "Imbiss", "Biergarten", "Sonstiges"].includes(d.type)) document.getElementById("spot-type").value = d.type;
+      if (d.type && SPOT_TYPES.includes(d.type)) setSpotTypeForNew(d.type);
       if (d.street) document.getElementById("spot-street").value = d.street;
       if (d.zip) document.getElementById("spot-zip").value = String(d.zip).slice(0, 5);
       if (d.city) document.getElementById("spot-city").value = d.city;

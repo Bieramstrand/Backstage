@@ -48,7 +48,7 @@
     color: var(--muted);
     text-transform: none;
     vertical-align: middle;
-    margin-left: 4px;
+    white-space: nowrap;
   }
   .by-tag-under {
     font-family: 'Work Sans', sans-serif;
@@ -167,7 +167,7 @@
   /* App shell */
   #app { display: none; min-height: 100vh; }
   header {
-    padding: calc(40px + env(safe-area-inset-top, 0px)) 24px 24px;
+    padding: calc(26px + env(safe-area-inset-top, 0px)) 24px 14px;
     border-bottom: 1px solid rgba(240,239,236,0.12);
     overflow-x: hidden;
   }
@@ -184,7 +184,7 @@
     max-width: 480px;
     margin: 0 auto;
     display: flex;
-    gap: 2px;
+    gap: 0;
     background: var(--bg-soft);
     border: 1px solid rgba(240,239,236,0.12);
     border-radius: 20px;
@@ -220,7 +220,21 @@
     color: var(--amber);
   }
 
-  main { max-width: 960px; margin: 0 auto; padding: 40px 24px; padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px)); }
+  .header-title-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+  .header-title-row h1 { flex: 1; min-width: 0; }
+  #news-top-btn {
+    flex-shrink: 0; display: inline-flex; align-items: center; gap: 5px;
+    margin-top: calc((clamp(34px, 10vw, 56px) - 34px) / 2);
+    padding: 7px 12px; border-radius: 20px; cursor: pointer;
+    font-size: 12.5px; font-weight: 600; font-family: inherit; line-height: 1.2;
+    background: transparent; color: var(--muted);
+    border: 1px solid rgba(240,239,236,0.18);
+    transition: background 0.15s, color 0.15s;
+  }
+  #news-top-btn.active { background: rgba(232,163,61,0.15); color: var(--amber); border-color: rgba(232,163,61,0.4); }
+  header h1 { cursor: pointer; }
+
+  main { max-width: 960px; margin: 0 auto; padding: 20px 24px; padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px)); }
   .section-header {
     display: flex; align-items: center; justify-content: space-between;
     margin-bottom: 20px; flex-wrap: wrap; gap: 12px;
@@ -376,6 +390,37 @@
   }
   .btn-promote:hover { background: rgba(154,160,168,0.3); }
   .idea-card .comments-section { padding-left: 0; padding-right: 0; padding-bottom: 0; }
+
+  /* Essen */
+  .spot-card {
+    padding: 16px; border-radius: 10px; background: var(--bg-soft);
+    border: 1px solid rgba(240,239,236,0.1); margin-bottom: 12px;
+  }
+  .spot-card.visited { opacity: 0.72; }
+  .spot-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+  .spot-head .title-row { min-width: 0; }
+  .spot-chevron { flex-shrink: 0; color: var(--muted); font-size: 14px; padding: 2px 4px; }
+  .spot-card .title-row { display: flex; align-items: center; gap: 8px; font-weight: 600; }
+  .spot-card .who { font-size: 12px; color: var(--muted); margin: 3px 0 0; }
+  .spot-card .note { font-size: 14px; color: var(--muted); margin-top: 6px; overflow-wrap: anywhere; }
+  .spot-card .comments-section { padding-left: 0; padding-right: 0; padding-bottom: 0; }
+  .spot-tag {
+    font-size: 11px; padding: 2px 8px; border-radius: 20px;
+    background: rgba(232,163,61,0.15); color: var(--amber); white-space: nowrap;
+  }
+  .spot-links { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+  .nearby-food {
+    margin: -4px 10px 14px; padding: 10px 14px; border-radius: 8px;
+    background: rgba(232,163,61,0.07); border: 1px solid rgba(232,163,61,0.22);
+  }
+  .nearby-food .nearby-title { font-size: 12px; font-weight: 600; color: var(--amber); letter-spacing: 0.04em; margin-bottom: 6px; }
+  .nearby-food .nearby-row { font-size: 13.5px; padding: 3px 0; overflow-wrap: anywhere; }
+  .nearby-food .nearby-row a { color: var(--paper); font-weight: 600; text-decoration: underline; }
+  .nearby-food .nearby-meta { color: var(--muted); font-size: 12px; }
+  .spot-img { width: 64px; height: 64px; object-fit: cover; border-radius: 8px; flex-shrink: 0; background: rgba(240,239,236,0.06); }
+  .leaflet-container { font-family: inherit; background: #18181a; }
+  .leaflet-popup-content { color: #18181a; font-size: 13px; line-height: 1.4; }
+  .leaflet-popup-content a { color: #b36f00; }
 
   .news-item {
     display: flex; align-items: flex-start; gap: 12px;
@@ -582,8 +627,10 @@
   <div id="app">
     <header>
       <div class="wrap">
-        <h1 class="display">Backstage <span class="by-tag">by BierAmStrand</span></h1>
-        <p class="tagline">Fotos, Konzerte und Termine – an einem Ort.</p>
+        <div class="header-title-row">
+        <h1 class="display" id="home-title">Backstage <span class="by-tag">by BierAmStrand</span></h1>
+        <button type="button" id="news-top-btn" class="active" data-tab="news">📰 News</button>
+        </div>
         <p class="config-note hidden" id="config-warning" style="text-align:left; margin: 8px 0 0;">Hinweis: Firebase ist noch nicht eingerichtet – Eingaben werden aktuell nicht dauerhaft gespeichert.</p>
       </div>
     </header>
@@ -691,6 +738,90 @@
         </div>
       </section>
 
+      <!-- ESSEN -->
+      <section id="tab-food" class="tab-panel hidden">
+        <div class="section-header">
+          <div class="left"><span>🍽️</span><h2>Was essen wir?</h2><span class="count-badge" id="spot-count">0</span></div>
+          <button class="btn-add" id="toggle-spot-form">＋ Location</button>
+        </div>
+        <p style="font-size:14px; color:var(--muted); margin:-8px 0 20px;">Restaurants, Cafés, Bars und Imbisse, die wir ausprobieren wollen oder schon gut fanden.</p>
+        <div class="cc-add-artist-box">
+          <form id="spot-search-form">
+            <div class="cc-input-row">
+              <input type="text" id="spot-search-input" placeholder="Location suchen, z. B. Superbad Hamburg…" required />
+              <button type="submit" class="btn-add" id="spot-search-btn">🔍 Suchen</button>
+            </div>
+          </form>
+          <p id="spot-search-status" class="hidden" style="font-size:13px; color:var(--muted); margin:10px 0 0;"></p>
+          <div id="spot-search-results"></div>
+        </div>
+        <form class="entry-form hidden" id="spot-form">
+          <!-- Foto Scan vorerst ausgeblendet. Zum Einschalten die Klasse "hidden" beim folgenden div entfernen. -->
+          <div class="full hidden" style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+            <button type="button" class="btn-promote" id="spot-scan-btn" style="font-size:13px; padding:8px 12px;">📷 Foto scannen</button>
+            <input type="file" id="spot-scan-input" accept="image/*" class="hidden" />
+            <span id="spot-scan-status" style="font-size:13px; color:var(--muted);"></span>
+          </div>
+          <label class="full">Name der Location<input type="text" id="spot-name" placeholder="z. B. Pizzeria da Mario" required /></label>
+          <label>Art
+            <select id="spot-type">
+              <option>Restaurant</option>
+              <option>Café</option>
+              <option>Bar</option>
+              <option>Imbiss</option>
+              <option>Biergarten</option>
+              <option>Sonstiges</option>
+            </select>
+          </label>
+          <label class="full">Straße und Hausnummer<input type="text" id="spot-street" placeholder="z. B. Bartelsstraße 7 bis 11" /></label>
+          <label>PLZ<input type="text" id="spot-zip" inputmode="numeric" maxlength="5" placeholder="20357" /></label>
+          <label>Ort<input type="text" id="spot-city" placeholder="z. B. Hamburg" /></label>
+          <label>Eingetragen von
+            <select id="spot-who">
+              <option>Buggi</option>
+              <option>Timo</option>
+              <option>Bastian</option>
+              <option>Marco</option>
+            </select>
+          </label>
+          <label>Link (optional)<input type="url" id="spot-link" placeholder="https://..." /></label>
+          <label>Bewertung
+            <select id="spot-rating">
+              <option value="0">Noch keine</option>
+              <option value="1">★</option>
+              <option value="2">★★</option>
+              <option value="3">★★★</option>
+              <option value="4">★★★★</option>
+              <option value="5">★★★★★</option>
+            </select>
+          </label>
+          <label class="full">Notiz<input type="text" id="spot-note" placeholder="optional, z. B. Empfehlung oder Lieblingsgericht" /></label>
+          <label class="full">Vorschaubild (optional)<input type="file" id="spot-image" accept="image/*" /></label>
+          <div class="full hidden" id="spot-image-current" style="display:flex; align-items:center; gap:10px;">
+            <img id="spot-image-thumb" class="spot-img" alt="" />
+            <button type="button" class="btn-promote" id="spot-image-remove">Bild entfernen</button>
+          </div>
+          <p class="full hidden" id="spot-submit-status" style="font-size:13px; color:var(--muted); margin:0;"></p>
+          <div class="form-actions">
+            <button type="button" class="btn-cancel" data-cancel="spot-form">Abbrechen</button>
+            <button type="submit" class="btn-save" id="spot-submit-btn">Speichern</button>
+          </div>
+        </form>
+        <div style="margin:0 0 14px; display:flex; flex-wrap:wrap; gap:8px;">
+          <button type="button" class="btn-promote" id="toggle-spots-map" style="font-size:13px; padding:8px 12px;">🗺️ Karte</button>
+          <button type="button" class="btn-promote hidden" id="toggle-all-spots" style="font-size:13px; padding:8px 12px;">Alle aufklappen</button>
+        </div>
+        <div id="spots-map-wrap" class="hidden">
+          <div id="spots-map" style="height:380px; border-radius:10px; overflow:hidden; border:1px solid rgba(240,239,236,0.1);"></div>
+          <p id="spots-map-status" style="font-size:12px; color:var(--muted); margin:8px 0 18px;"></p>
+        </div>
+        <div id="spots-list"></div>
+        <div id="spots-empty" class="empty-state hidden">
+          <div class="ic">🍽️</div>
+          <p>Noch keine Locations eingetragen. Wo wollt ihr als Nächstes essen?</p>
+        </div>
+      </section>
+
       <!-- PHOTOS -->
       <section id="tab-photos" class="tab-panel hidden">
 
@@ -790,9 +921,9 @@
     </main>
 
     <nav class="tabs">
-      <button data-tab="news" class="active"><span class="bn-icon">📰</span><span class="bn-label">News</span></button>
       <button data-tab="timeline"><span class="bn-icon">🎫</span><span class="bn-label">Plano</span></button>
       <button data-tab="ideas"><span class="bn-icon">💡</span><span class="bn-label">Ideen</span></button>
+      <button data-tab="food"><span class="bn-icon">🍽️</span><span class="bn-label">Essen</span></button>
       <button data-tab="photos"><span class="bn-icon">📷</span><span class="bn-label">Foto/Video</span></button>
       <button data-tab="concerts"><span class="bn-icon">🎸</span><span class="bn-label">Konzerte</span></button>
     </nav>
@@ -1196,6 +1327,13 @@
       });
     });
 
+    spots.forEach((sp) => {
+      if (sp.createdAt) entries.push({ ts: sp.createdAt, icon: "🍽️", html: `<b>${escapeHtml(sp.who)}</b> hat eine Location eingetragen: <b>${escapeHtml(sp.name)}</b>`, tab: "food", targetId: `spot-${sp.id}` });
+      (sp.comments || []).forEach((c) => {
+        if (c.createdAt) entries.push({ ts: c.createdAt, icon: "💬", html: `<b>${escapeHtml(c.who)}</b> hat zu „${escapeHtml(sp.name)}“ kommentiert: ${escapeHtml(c.text)}`, tab: "food", targetId: `spot-${sp.id}` });
+      });
+    });
+
     // Fotos aus demselben Upload-Vorgang (batchId) zusammenfassen, wenn es mehr als 2 sind –
     // Fotos ohne batchId (z. B. ältere Einträge) oder Einzel-/Zweier-Batches bleiben einzeln.
     const photoGroups = {};
@@ -1282,6 +1420,10 @@
         if (!entry || entry.isDigest) return;
         goToTab(entry.tab);
         if (entry.tab === "photos" && entry.albumId) openAlbum(entry.albumId);
+        if (entry.tab === "food" && entry.targetId && entry.targetId.startsWith("spot-")) {
+          openSpots.add(entry.targetId.slice(5));
+          renderSpots();
+        }
         setTimeout(() => {
           const target = document.getElementById(entry.targetId);
           if (!target) return;
@@ -1316,13 +1458,14 @@
     renderAlbums();
     renderPhotos();
     renderIdeas();
+    renderSpots();
     renderNews();
     renderCCChips();
   }
 
   // ---- Tabs ----
   function goToTab(tabName) {
-    document.querySelectorAll("nav.tabs button").forEach((b) => b.classList.toggle("active", b.dataset.tab === tabName));
+    document.querySelectorAll("nav.tabs button[data-tab], #news-top-btn").forEach((b) => b.classList.toggle("active", b.dataset.tab === tabName));
     document.querySelectorAll(".tab-panel").forEach((p) => p.classList.add("hidden"));
     const panel = document.getElementById("tab-" + tabName);
     if (panel) panel.classList.remove("hidden");
@@ -1331,8 +1474,15 @@
       renderCCArtistCards();
     }
   }
-  document.querySelectorAll("nav.tabs button").forEach((btn) => {
-    btn.addEventListener("click", () => goToTab(btn.dataset.tab));
+  document.querySelectorAll("nav.tabs button[data-tab], #news-top-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      goToTab(btn.dataset.tab);
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    });
+  });
+  document.getElementById("home-title").addEventListener("click", () => {
+    goToTab("news");
+    window.scrollTo({ top: 0, behavior: "smooth" });
   });
 
   // ---- Form toggles ----
@@ -1349,6 +1499,7 @@
     label.textContent = isHidden ? "Vergangen anzeigen" : "Vergangen ausblenden";
   });
   wireToggle("toggle-idea-form", "idea-form");
+  wireToggle("toggle-spot-form", "spot-form");
   wireToggle("toggle-photo-form", "photo-form");
   wireToggle("toggle-album-form", "album-form");
   document.getElementById("back-to-albums").addEventListener("click", () => {
@@ -1368,6 +1519,7 @@
         document.getElementById("ev-file-status").classList.add("hidden");
       }
       if (formId === "idea-form") { editingIdeaId = null; document.getElementById("idea-submit-btn").textContent = "Speichern"; }
+      if (formId === "spot-form") { editingSpotId = null; document.getElementById("spot-submit-btn").textContent = "Speichern"; document.getElementById("spot-scan-status").textContent = ""; resetSpotImageUi(); }
       if (formId === "album-form") { editingAlbumId = null; document.getElementById("album-submit-btn").textContent = "Speichern"; }
     });
   });
@@ -1439,12 +1591,14 @@
             </div>
           </div>
           ${commentsHtml(ev.id, ev.comments)}
-        </div>`;
+        </div>${!dim && ev.type === "Konzert" && ev.location ? `<div class="nearby-food hidden" data-nearby-for="${ev.id}"></div>` : ""}`;
       }).join("");
 
     document.getElementById("upcoming-list").innerHTML = renderList(upcoming, false);
     document.getElementById("past-list").innerHTML = renderList(past, true);
     wireComments(["upcoming-list", "past-list"], () => events, renderEvents);
+    fillNearby();
+    refreshNearbyData();
 
     document.querySelectorAll("[data-ical-event]").forEach((b) => {
       b.addEventListener("click", () => {
@@ -1958,6 +2112,588 @@
 
 
 
+  // ---- Essen ----
+  function renderSpots() {
+    document.getElementById("spot-count").textContent = spots.length;
+    setTimeout(() => { renderSpotsMap(); fillNearby(); refreshNearbyData(); }, 0);
+    const list = document.getElementById("spots-list");
+    const empty = document.getElementById("spots-empty");
+    if (spots.length === 0) {
+      list.innerHTML = "";
+      empty.classList.remove("hidden");
+      return;
+    }
+    empty.classList.add("hidden");
+    // Noch nicht besuchte Locations zuerst, innerhalb davon die neuesten oben
+    const sorted = [...spots].sort((a, b) => (a.visited ? 1 : 0) - (b.visited ? 1 : 0));
+    list.innerHTML = sorted.map((sp) => {
+      const addrLine = [sp.street, [sp.zip, sp.city].filter(Boolean).join(" ")].filter(Boolean).join(", ");
+      const mapsUrl = "https://www.google.com/maps/search/?api=1&query=" + encodeURIComponent([sp.name, sp.street, sp.zip, sp.city].filter(Boolean).join(" "));
+      const safeLink = sp.link && /^https?:\/\//i.test(sp.link) ? sp.link : "";
+      return `
+      <div class="spot-card${sp.visited ? " visited" : ""}" id="spot-${sp.id}">
+        <div class="spot-head" data-toggle-spot="${sp.id}" role="button" tabindex="0" aria-expanded="${openSpots.has(sp.id)}">
+          <div class="title-row"><span>🍽️</span><span style="overflow-wrap:anywhere;">${escapeHtml(sp.name)}</span></div>
+          <span class="spot-chevron">${openSpots.has(sp.id) ? "▴" : "▾"}</span>
+        </div>
+        <div class="spot-body${openSpots.has(sp.id) ? "" : " hidden"}" style="margin-top:12px;">
+        <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:12px;">
+          ${/^https:\/\//.test(sp.imageUrl || "") ? `<img class="spot-img" src="${escapeHtml(sp.imageUrl)}" alt="" loading="lazy" />` : ""}
+          <div style="min-width:0; flex:1;">
+            <p class="who" style="margin-top:0; display:flex; gap:6px; align-items:center; flex-wrap:wrap;">
+              <span class="spot-tag">${escapeHtml(sp.type || "Restaurant")}</span>
+              ${sp.rating ? `<span class="spot-tag">${"★".repeat(sp.rating)}</span>` : ""}
+              <span>von ${escapeHtml(sp.who)}</span>
+              ${sp.visited ? `<span class="spot-tag">Besucht</span>` : ""}
+            </p>
+            ${addrLine ? `<p class="note" style="margin-top:4px;">📍 ${escapeHtml(addrLine)}</p>` : ""}
+            ${sp.note ? `<p class="note">${escapeHtml(sp.note)}</p>` : ""}
+          </div>
+          <div style="flex-shrink:0; display:flex; flex-direction:column; align-items:flex-end; gap:4px;">
+            <button class="icon-btn" data-edit-spot="${sp.id}" title="Bearbeiten">✏️</button>
+            <button class="icon-btn" data-remove-spot="${sp.id}" title="Löschen">🗑️</button>
+          </div>
+        </div>
+        <div class="spot-links">
+          <a class="event-tile-btn" href="${escapeHtml(mapsUrl)}" target="_blank" rel="noreferrer">📍 Karte</a>
+          ${safeLink ? `<a class="event-tile-btn" href="${escapeHtml(safeLink)}" target="_blank" rel="noreferrer">🔗 Website</a>` : ""}
+          <button type="button" class="btn-promote" data-toggle-visited="${sp.id}">${sp.visited ? "Wieder offen" : "Schon besucht"}</button>
+        </div>
+        ${commentsHtml(sp.id, sp.comments)}
+        </div>
+      </div>`;
+    }).join("");
+    wireComments(["spots-list"], () => spots, renderSpots);
+    updateSpotsToggleAll();
+    document.querySelectorAll("[data-toggle-spot]").forEach((h) => {
+      const toggle = () => {
+        const id = h.dataset.toggleSpot;
+        const body = h.closest(".spot-card").querySelector(".spot-body");
+        const nowHidden = body.classList.toggle("hidden");
+        if (nowHidden) openSpots.delete(id); else openSpots.add(id);
+        h.setAttribute("aria-expanded", String(!nowHidden));
+        h.querySelector(".spot-chevron").textContent = nowHidden ? "▾" : "▴";
+        updateSpotsToggleAll();
+      };
+      h.addEventListener("click", toggle);
+      h.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggle(); }
+      });
+    });
+    document.querySelectorAll("[data-remove-spot]").forEach((b) => {
+      b.addEventListener("click", () => {
+        if (!confirm("Location wirklich löschen?")) return;
+        const gone = spots.find((x) => x.id === b.dataset.removeSpot);
+        if (gone && gone.imageUrl && storage) {
+          try { storage.refFromURL(gone.imageUrl).delete().catch(() => {}); } catch (err) { /* ignorieren */ }
+        }
+        spots = spots.filter((x) => x.id !== b.dataset.removeSpot);
+        persist();
+        renderSpots();
+      });
+    });
+    document.querySelectorAll("[data-toggle-visited]").forEach((b) => {
+      b.addEventListener("click", () => {
+        const sp = spots.find((x) => x.id === b.dataset.toggleVisited);
+        if (!sp) return;
+        sp.visited = !sp.visited;
+        persist();
+        renderSpots();
+      });
+    });
+    document.querySelectorAll("[data-edit-spot]").forEach((b) => {
+      b.addEventListener("click", () => {
+        const sp = spots.find((x) => x.id === b.dataset.editSpot);
+        if (!sp) return;
+        editingSpotId = sp.id;
+        document.getElementById("spot-name").value = sp.name;
+        document.getElementById("spot-type").value = sp.type || "Restaurant";
+        document.getElementById("spot-street").value = sp.street || "";
+        document.getElementById("spot-zip").value = sp.zip || "";
+        document.getElementById("spot-city").value = sp.city || "";
+        document.getElementById("spot-who").value = sp.who;
+        document.getElementById("spot-link").value = sp.link || "";
+        document.getElementById("spot-note").value = sp.note || "";
+        document.getElementById("spot-rating").value = String(sp.rating || 0);
+        document.getElementById("spot-submit-btn").textContent = "Aktualisieren";
+        spotImageRemove = false;
+        if (/^https:\/\//.test(sp.imageUrl || "")) {
+          document.getElementById("spot-image-thumb").src = sp.imageUrl;
+          document.getElementById("spot-image-current").classList.remove("hidden");
+        } else {
+          document.getElementById("spot-image-current").classList.add("hidden");
+        }
+        document.getElementById("spot-form").classList.remove("hidden");
+        document.getElementById("spot-name").scrollIntoView({ behavior: "smooth", block: "center" });
+      });
+    });
+  }
+
+  // ---- Karte für Essen: Leaflet mit OpenStreetMap Daten, Adressen werden über Nominatim in Koordinaten umgewandelt ----
+  let spotsMap = null, spotsMapLayer = null, leafletPromise = null, spotsGeocoding = false;
+  // Welche Karten in der Liste gerade aufgeklappt sind, standardmäßig sind alle zugeklappt
+  const openSpots = new Set();
+  function updateSpotsToggleAll() {
+    const btn = document.getElementById("toggle-all-spots");
+    if (!btn) return;
+    btn.classList.toggle("hidden", spots.length < 2);
+    btn.textContent = spots.length > 0 && spots.every((sp) => openSpots.has(sp.id)) ? "Alle zuklappen" : "Alle aufklappen";
+  }
+  document.getElementById("toggle-all-spots").addEventListener("click", () => {
+    const allOpen = spots.every((sp) => openSpots.has(sp.id));
+    if (allOpen) openSpots.clear(); else spots.forEach((sp) => openSpots.add(sp.id));
+    renderSpots();
+  });
+
+  function loadLeaflet() {
+    if (window.L) return Promise.resolve();
+    if (leafletPromise) return leafletPromise;
+    leafletPromise = new Promise((resolve, reject) => {
+      const css = document.createElement("link");
+      css.rel = "stylesheet";
+      css.href = "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css";
+      document.head.appendChild(css);
+      const js = document.createElement("script");
+      js.src = "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js";
+      js.onload = resolve;
+      js.onerror = () => { leafletPromise = null; reject(new Error("Leaflet konnte nicht geladen werden")); };
+      document.head.appendChild(js);
+    });
+    return leafletPromise;
+  }
+
+  // Suchtext für die Adresssuche. Hausnummernbereiche wie "7 bis 11" werden auf "7" gekürzt.
+  function spotAddrKey(sp) {
+    if (sp.street) {
+      const street = sp.street.replace(/(\d+\s?[a-zA-Z]?)\s*(?:bis|-|–)\s*\d+\s?[a-zA-Z]?/i, "$1").trim();
+      return [street, sp.zip, sp.city].filter(Boolean).join(" ");
+    }
+    return sp.city ? [sp.name, sp.city].join(" ") : "";
+  }
+
+  // Alle Adresssuchen laufen nacheinander mit gut einer Sekunde Abstand, so verlangt es Nominatim.
+  let nominatimQueue = Promise.resolve();
+  function nominatimLookup(q) {
+    const run = async () => {
+      const r = await fetch("https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&countrycodes=de&q=" + encodeURIComponent(q), { headers: { "Accept-Language": "de" } });
+      if (!r.ok) throw new Error("HTTP " + r.status);
+      const arr = await r.json();
+      await new Promise((res) => setTimeout(res, 1100));
+      return arr[0] || null;
+    };
+    const p = nominatimQueue.then(run, run);
+    nominatimQueue = p.catch(() => {});
+    return p;
+  }
+
+  async function ensureSpotCoords() {
+    if (spotsGeocoding) return;
+    spotsGeocoding = true;
+    let changed = false;
+    const status = document.getElementById("spots-map-status");
+    try {
+      for (const sp of spots) {
+        const key = spotAddrKey(sp);
+        if (!key || sp.geoKey === key) continue; // keine Adresse oder schon gesucht
+        if (status) status.textContent = "Adressen werden gesucht …";
+        try {
+          const hit = await nominatimLookup(key);
+          sp.geoKey = key;
+          delete sp.lat; delete sp.lng;
+          if (hit) { sp.lat = parseFloat(hit.lat); sp.lng = parseFloat(hit.lon); }
+          changed = true;
+        } catch (err) {
+          console.error("Adresssuche fehlgeschlagen", err); // beim nächsten Mal erneut versuchen
+        }
+      }
+    } finally {
+      spotsGeocoding = false;
+    }
+    if (changed) persist();
+    renderSpotsMap();
+  }
+
+  // ---- Essen in der Nähe von Konzerten (Plano) ----
+  const NEARBY_RADIUS_M = 2000;
+  const NEARBY_MAX = 3;
+  // Ergebnisse, die nur einen ganzen Ort oder Stadtteil treffen, sind für "in der Nähe" zu ungenau
+  const VAGUE_PLACE_TYPES = ["city", "town", "village", "suburb", "borough", "city_district", "district", "quarter", "neighbourhood", "municipality", "county", "state", "country", "postcode", "hamlet"];
+  let eventsGeocoding = false;
+
+  function distanceM(lat1, lng1, lat2, lng2) {
+    const rad = Math.PI / 180;
+    const dLat = (lat2 - lat1) * rad, dLng = (lng2 - lng1) * rad;
+    const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * rad) * Math.cos(lat2 * rad) * Math.sin(dLng / 2) ** 2;
+    return 6371000 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  }
+  function fmtDistance(d) {
+    return d < 1000 ? `${Math.max(10, Math.round(d / 10) * 10)} m` : `${(d / 1000).toFixed(1).replace(".", ",")} km`;
+  }
+  function upcomingConcertsWithLocation() {
+    const today = new Date().toISOString().slice(0, 10);
+    return events.filter((ev) => ev.type === "Konzert" && ev.location && (ev.dateEnd && ev.dateEnd > ev.date ? ev.dateEnd : ev.date) >= today);
+  }
+
+  async function ensureEventCoords() {
+    if (eventsGeocoding) return;
+    eventsGeocoding = true;
+    let changed = false;
+    try {
+      for (const ev of upcomingConcertsWithLocation()) {
+        const key = ev.location.trim();
+        if (!key || ev.geoKey === key) continue;
+        try {
+          const hit = await nominatimLookup(key);
+          ev.geoKey = key;
+          delete ev.lat; delete ev.lng;
+          if (hit && !VAGUE_PLACE_TYPES.includes(hit.addresstype)) { ev.lat = parseFloat(hit.lat); ev.lng = parseFloat(hit.lon); }
+          changed = true;
+        } catch (err) {
+          console.error("Suche nach dem Veranstaltungsort fehlgeschlagen", err);
+        }
+      }
+    } finally {
+      eventsGeocoding = false;
+    }
+    if (changed) persist();
+    fillNearby();
+  }
+
+  // Sorgt dafür, dass Koordinaten für Locations und Konzerte da sind, aber nur wenn es überhaupt etwas zu vergleichen gibt
+  async function refreshNearbyData() {
+    if (spots.length === 0 || upcomingConcertsWithLocation().length === 0) return;
+    await ensureSpotCoords();
+    await ensureEventCoords();
+    fillNearby();
+  }
+
+  function fillNearby() {
+    document.querySelectorAll("[data-nearby-for]").forEach((el) => {
+      const ev = events.find((x) => x.id === el.dataset.nearbyFor);
+      const hide = () => { el.innerHTML = ""; el.classList.add("hidden"); };
+      if (!ev || typeof ev.lat !== "number" || typeof ev.lng !== "number") return hide();
+      const near = spots
+        .filter((sp) => typeof sp.lat === "number" && typeof sp.lng === "number")
+        .map((sp) => ({ sp, d: distanceM(ev.lat, ev.lng, sp.lat, sp.lng) }))
+        .filter((x) => x.d <= NEARBY_RADIUS_M)
+        .sort((a, b) => (b.sp.rating || 0) - (a.sp.rating || 0) || a.d - b.d)
+        .slice(0, NEARBY_MAX);
+      if (near.length === 0) return hide();
+      el.classList.remove("hidden");
+      el.innerHTML = `<div class="nearby-title">🍽️ ESSEN IN DER NÄHE</div>` + near.map(({ sp, d }) => {
+        const url = "https://www.google.com/maps/search/?api=1&query=" + encodeURIComponent([sp.name, sp.street, sp.zip, sp.city].filter(Boolean).join(" "));
+        const meta = [sp.type || "Restaurant", sp.rating ? "★".repeat(sp.rating) : "", "ca. " + fmtDistance(d), sp.visited ? "schon besucht" : ""].filter(Boolean).join(" · ");
+        return `<div class="nearby-row"><a href="${escapeHtml(url)}" target="_blank" rel="noreferrer">${escapeHtml(sp.name)}</a> <span class="nearby-meta">${escapeHtml(meta)}</span></div>`;
+      }).join("");
+    });
+  }
+
+  async function renderSpotsMap() {
+    const wrap = document.getElementById("spots-map-wrap");
+    if (!wrap || wrap.classList.contains("hidden")) return;
+    const status = document.getElementById("spots-map-status");
+    try { await loadLeaflet(); } catch (err) { status.textContent = "Die Karte konnte nicht geladen werden."; return; }
+    if (!spotsMap) {
+      spotsMap = L.map("spots-map", { scrollWheelZoom: false }).setView([51.1, 10.4], 6);
+      L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
+        maxZoom: 19, subdomains: "abcd",
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> Mitwirkende &copy; <a href="https://carto.com/attributions">CARTO</a>',
+      }).addTo(spotsMap);
+      spotsMapLayer = L.layerGroup().addTo(spotsMap);
+    }
+    spotsMap.invalidateSize();
+    spotsMapLayer.clearLayers();
+    const pts = [];
+    spots.forEach((sp) => {
+      if (typeof sp.lat !== "number" || typeof sp.lng !== "number") return;
+      const addr = [sp.street, [sp.zip, sp.city].filter(Boolean).join(" ")].filter(Boolean).join(", ");
+      const gmaps = "https://www.google.com/maps/search/?api=1&query=" + encodeURIComponent([sp.name, sp.street, sp.zip, sp.city].filter(Boolean).join(" "));
+      const m = L.circleMarker([sp.lat, sp.lng], {
+        radius: 9, weight: 2, color: "#18181a",
+        fillColor: sp.visited ? "#9aa0a8" : "#e8a33d", fillOpacity: 0.95,
+      }).addTo(spotsMapLayer);
+      const popImg = /^https:\/\//.test(sp.imageUrl || "") ? `<img src="${escapeHtml(sp.imageUrl)}" alt="" style="display:block; width:200px; max-width:100%; height:110px; object-fit:cover; border-radius:6px; margin-bottom:6px;" />` : "";
+      m.bindPopup(`${popImg}<b>${escapeHtml(sp.name)}</b><br>${escapeHtml(sp.type || "Restaurant")}${sp.rating ? " " + "★".repeat(sp.rating) : ""}${sp.visited ? " (besucht)" : ""}${addr ? "<br>" + escapeHtml(addr) : ""}<br><a href="${escapeHtml(gmaps)}" target="_blank" rel="noreferrer">In Google Maps öffnen</a>`, { minWidth: 200 });
+      pts.push([sp.lat, sp.lng]);
+    });
+    if (pts.length === 1) spotsMap.setView(pts[0], 15);
+    else if (pts.length > 1) spotsMap.fitBounds(pts, { padding: [30, 30], maxZoom: 15 });
+    const missing = spots.length - pts.length;
+    status.textContent = spots.length === 0
+      ? "Noch keine Locations eingetragen."
+      : `${pts.length} von ${spots.length} Locations auf der Karte${missing > 0 ? `. ${missing} ohne auffindbare Adresse, dafür Straße, PLZ und Ort eintragen.` : "."}`;
+  }
+
+  document.getElementById("toggle-spots-map").addEventListener("click", (e) => {
+    const wrap = document.getElementById("spots-map-wrap");
+    const nowHidden = wrap.classList.toggle("hidden");
+    e.currentTarget.textContent = nowHidden ? "🗺️ Karte" : "🗺️ Karte ausblenden";
+    if (!nowHidden) {
+      renderSpotsMap();
+      ensureSpotCoords();
+    }
+  });
+
+  // ---- Locations im Web suchen, Treffer lassen sich ins Formular übernehmen ----
+  const SEARCH_ENDPOINT = "/.netlify/functions/search-location";
+  let spotSearchResults = [];
+
+  function setSpotSearchStatus(msg, isErr) {
+    const el = document.getElementById("spot-search-status");
+    el.textContent = msg;
+    el.style.color = isErr ? "var(--err)" : "var(--muted)";
+    el.classList.toggle("hidden", !msg);
+  }
+
+  function renderSpotSearchResults() {
+    const box = document.getElementById("spot-search-results");
+    box.innerHTML = spotSearchResults.map((r, i) => {
+      const addr = [r.street, [r.zip, r.city].filter(Boolean).join(" ")].filter(Boolean).join(", ");
+      const known = spots.some((sp) => sp.name.trim().toLowerCase() === r.name.trim().toLowerCase());
+      return `
+      <div style="padding:12px 0; border-top:1px solid rgba(240,239,236,0.1); margin-top:${i === 0 ? "12px" : "0"};">
+        <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px;">
+          <div style="min-width:0; flex:1;">
+            <div style="font-weight:600; overflow-wrap:anywhere;">${escapeHtml(r.name)} <span class="spot-tag">${escapeHtml(r.type)}</span></div>
+            ${addr ? `<div style="font-size:13px; color:var(--muted); margin-top:3px;">📍 ${escapeHtml(addr)}</div>` : ""}
+            ${r.note ? `<div style="font-size:13px; color:var(--muted); margin-top:3px;">${escapeHtml(r.note)}</div>` : ""}
+          </div>
+          ${known
+            ? `<span class="spot-tag" style="flex-shrink:0;">Schon in der Liste</span>`
+            : `<button type="button" class="btn-promote" style="flex-shrink:0;" data-use-result="${i}">＋ Übernehmen</button>`}
+        </div>
+      </div>`;
+    }).join("");
+    box.querySelectorAll("[data-use-result]").forEach((b) => {
+      b.addEventListener("click", () => useSpotSearchResult(Number(b.dataset.useResult)));
+    });
+  }
+
+  function useSpotSearchResult(i) {
+    const r = spotSearchResults[i];
+    if (!r) return;
+    editingSpotId = null;
+    document.getElementById("spot-submit-btn").textContent = "Speichern";
+    document.getElementById("spot-name").value = r.name;
+    document.getElementById("spot-type").value = r.type;
+    document.getElementById("spot-street").value = r.street;
+    document.getElementById("spot-zip").value = r.zip;
+    document.getElementById("spot-city").value = r.city;
+    document.getElementById("spot-link").value = r.website;
+    document.getElementById("spot-note").value = r.note;
+    document.getElementById("spot-rating").value = "0";
+    resetSpotImageUi();
+    document.getElementById("spot-form").classList.remove("hidden");
+    document.getElementById("spot-name").scrollIntoView({ behavior: "smooth", block: "center" });
+    spotSearchResults = [];
+    renderSpotSearchResults();
+    setSpotSearchStatus("Bitte Angaben kurz prüfen und speichern.", false);
+    document.getElementById("spot-search-input").value = "";
+  }
+
+  document.getElementById("spot-search-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const query = document.getElementById("spot-search-input").value.trim();
+    if (query.length < 2) return;
+    const btn = document.getElementById("spot-search-btn");
+    btn.disabled = true;
+    spotSearchResults = [];
+    renderSpotSearchResults();
+    setSpotSearchStatus("Suche läuft …", false);
+    try {
+      const resp = await fetch(SEARCH_ENDPOINT, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ query, token: PASSWORD }),
+      });
+      if (!resp.ok) throw new Error("Server antwortet mit " + resp.status);
+      const data = await resp.json();
+      spotSearchResults = Array.isArray(data.results) ? data.results : [];
+      if (spotSearchResults.length === 0) {
+        setSpotSearchStatus("Nichts gefunden. Schreib am besten den Ort dazu, z. B. Name und Stadt.", true);
+      } else {
+        setSpotSearchStatus("Treffer aus dem Web. Bitte die Adresse vor dem Speichern kurz prüfen.", false);
+        renderSpotSearchResults();
+      }
+    } catch (err) {
+      console.error("Location Suche fehlgeschlagen", err);
+      setSpotSearchStatus("Die Suche hat gerade nicht geklappt. Bitte noch einmal versuchen oder die Location von Hand eintragen.", true);
+    } finally {
+      btn.disabled = false;
+    }
+  });
+
+  // Adresse in einem Rutsch einfügen, z. B. "Bartelsstraße 7 bis 11, 20357 Hamburg" wird auf die Felder verteilt
+  document.getElementById("spot-street").addEventListener("input", (e) => {
+    const m = /^(.+?\d+\s?[a-zA-Z]?(?:\s?(?:-|–|bis)\s?\d+\s?[a-zA-Z]?)?)\s*,?\s*(\d{5})\s+(.+)$/.exec(e.target.value.trim());
+    if (!m) return;
+    e.target.value = m[1].trim();
+    document.getElementById("spot-zip").value = m[2];
+    document.getElementById("spot-city").value = m[3].replace(/,?\s*Deutschland$/i, "").trim();
+  });
+
+  // Foto scannen: Screenshot oder Foto wird verkleinert an eine Cloud Function geschickt, die Name und Adresse zurückgibt.
+  // Läuft über die Netlify Function scan-location (gleicher Perplexity Schlüssel wie die Konzert Abfrage).
+  const SCAN_ENDPOINT = "/.netlify/functions/scan-location";
+  function spotScanStatus(msg, isErr) {
+    const el = document.getElementById("spot-scan-status");
+    el.textContent = msg;
+    el.style.color = isErr ? "var(--err)" : "var(--muted)";
+  }
+  let spotImageRemove = false;
+  function resetSpotImageUi() {
+    spotImageRemove = false;
+    document.getElementById("spot-image-current").classList.add("hidden");
+    const st = document.getElementById("spot-submit-status");
+    st.textContent = "";
+    st.classList.add("hidden");
+  }
+  document.getElementById("spot-image-remove").addEventListener("click", () => {
+    spotImageRemove = true;
+    document.getElementById("spot-image-current").classList.add("hidden");
+  });
+  function resizeImageToBlob(file, maxSide) {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      const url = URL.createObjectURL(file);
+      img.onload = () => {
+        const scale = Math.min(1, maxSide / Math.max(img.width, img.height));
+        const c = document.createElement("canvas");
+        c.width = Math.round(img.width * scale);
+        c.height = Math.round(img.height * scale);
+        c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+        URL.revokeObjectURL(url);
+        c.toBlob((blob) => (blob ? resolve(blob) : reject(new Error("Bild konnte nicht umgewandelt werden"))), "image/jpeg", 0.82);
+      };
+      img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("Bild konnte nicht gelesen werden")); };
+      img.src = url;
+    });
+  }
+  function resizeImageToBase64(file, maxSide) {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      const url = URL.createObjectURL(file);
+      img.onload = () => {
+        const scale = Math.min(1, maxSide / Math.max(img.width, img.height));
+        const c = document.createElement("canvas");
+        c.width = Math.round(img.width * scale);
+        c.height = Math.round(img.height * scale);
+        c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+        URL.revokeObjectURL(url);
+        resolve(c.toDataURL("image/jpeg", 0.85).split(",")[1]);
+      };
+      img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("Bild konnte nicht gelesen werden")); };
+      img.src = url;
+    });
+  }
+  document.getElementById("spot-scan-btn").addEventListener("click", () => {
+    if (!SCAN_ENDPOINT) {
+      spotScanStatus("Foto Scan ist noch nicht eingerichtet. Die Adresse kannst du so lange von Hand eintragen oder einfügen.", true);
+      return;
+    }
+    document.getElementById("spot-scan-input").click();
+  });
+  document.getElementById("spot-scan-input").addEventListener("change", async (e) => {
+    const file = e.target.files && e.target.files[0];
+    e.target.value = "";
+    if (!file || !SCAN_ENDPOINT) return;
+    spotScanStatus("Foto wird gelesen …", false);
+    try {
+      const image = await resizeImageToBase64(file, 1400);
+      const resp = await fetch(SCAN_ENDPOINT, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ image, token: PASSWORD }),
+      });
+      if (!resp.ok) throw new Error("Server antwortet mit " + resp.status);
+      const d = await resp.json();
+      if (d.name) document.getElementById("spot-name").value = d.name;
+      if (d.type && ["Restaurant", "Café", "Bar", "Imbiss", "Biergarten", "Sonstiges"].includes(d.type)) document.getElementById("spot-type").value = d.type;
+      if (d.street) document.getElementById("spot-street").value = d.street;
+      if (d.zip) document.getElementById("spot-zip").value = String(d.zip).slice(0, 5);
+      if (d.city) document.getElementById("spot-city").value = d.city;
+      if (d.note) document.getElementById("spot-note").value = d.note;
+      spotScanStatus(d.name || d.street ? "Gelesen. Bitte kurz prüfen und speichern." : "Auf dem Foto war nichts Passendes zu erkennen.", !(d.name || d.street));
+    } catch (err) {
+      console.error("Foto Scan fehlgeschlagen", err);
+      spotScanStatus("Das hat nicht geklappt. Bitte noch einmal versuchen oder von Hand eintragen.", true);
+    }
+  });
+
+  document.getElementById("spot-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const form = e.target;
+    const spotData = {
+      name: document.getElementById("spot-name").value.trim(),
+      type: document.getElementById("spot-type").value,
+      street: document.getElementById("spot-street").value.trim(),
+      zip: document.getElementById("spot-zip").value.trim(),
+      city: document.getElementById("spot-city").value.trim(),
+      who: document.getElementById("spot-who").value,
+      link: document.getElementById("spot-link").value.trim(),
+      note: document.getElementById("spot-note").value.trim(),
+      rating: Number(document.getElementById("spot-rating").value) || 0,
+    };
+    if (!spotData.name) return;
+
+    const btn = document.getElementById("spot-submit-btn");
+    const st = document.getElementById("spot-submit-status");
+    const file = document.getElementById("spot-image").files[0];
+    const existing = editingSpotId ? spots.find((x) => x.id === editingSpotId) : null;
+    let imageUrl = existing && existing.imageUrl ? existing.imageUrl : "";
+    let oldImageToDelete = "";
+    if (spotImageRemove && imageUrl) { oldImageToDelete = imageUrl; imageUrl = ""; }
+
+    if (file) {
+      if (!storage) {
+        st.textContent = "Das Bild kann gerade nicht gespeichert werden, Firebase ist nicht verbunden. Du kannst ohne Bild speichern, dazu das Bild oben wieder entfernen.";
+        st.style.color = "var(--err)";
+        st.classList.remove("hidden");
+        return;
+      }
+      btn.disabled = true;
+      st.textContent = "Bild wird hochgeladen …";
+      st.style.color = "var(--muted)";
+      st.classList.remove("hidden");
+      try {
+        const blob = await resizeImageToBlob(file, 720);
+        const ref = storage.ref(`backstage-photos/spot-${uid()}.jpg`);
+        await ref.put(blob, { contentType: "image/jpeg" });
+        const url = await ref.getDownloadURL();
+        if (imageUrl) oldImageToDelete = imageUrl;
+        imageUrl = url;
+      } catch (err) {
+        console.error("Bild Upload fehlgeschlagen", err);
+        st.textContent = "Das Bild konnte nicht hochgeladen werden. Bitte noch einmal versuchen.";
+        st.style.color = "var(--err)";
+        btn.disabled = false;
+        return;
+      }
+    }
+    spotData.imageUrl = imageUrl;
+
+    if (editingSpotId) {
+      const idx = spots.findIndex((x) => x.id === editingSpotId);
+      if (idx !== -1) spots[idx] = { ...spots[idx], ...spotData };
+      editingSpotId = null;
+      btn.textContent = "Speichern";
+    } else {
+      const newSpotId = uid();
+      openSpots.add(newSpotId);
+      spots.unshift({ id: newSpotId, createdAt: Date.now(), visited: false, ...spotData });
+    }
+    if (oldImageToDelete && storage) {
+      try { storage.refFromURL(oldImageToDelete).delete().catch(() => {}); } catch (err) { /* ignorieren */ }
+    }
+    persist();
+    renderSpots();
+    ensureSpotCoords();
+    btn.disabled = false;
+    resetSpotImageUi();
+    form.reset();
+    form.classList.add("hidden");
+  });
+
   // ---- Konzerte (Perplexity-KI-Radar für Hamburg) ----
   const CC_CACHE_DAYS = 7; // Cache-Dauer für "kein Termin bekannt", danach wird automatisch neu abgefragt
   const CC_CACHE_DAYS_FOUND = 30; // Cache-Dauer für bereits gefundene Shows/Tour-Hinweise (länger, gegen KI-Inkonsistenz)
@@ -2177,7 +2913,7 @@
       const setlistUrl = `https://www.setlist.fm/search?query=${encodeURIComponent(artist)}`;
       const hvvUrl = `https://www.hvv.de/de/fahrplaene/fahrplanauskunft`;
       expandedEl.innerHTML = `
-        <div class="cc-card-date">🗓️ ${escapeHtml(data.date)}${data.time ? ` · 🕐 ${escapeHtml(data.time)}` : ""}${weekendTag} · ${escapeHtml(data.location || "")}</div>
+        <div class="cc-card-date">🗓️ ${escapeHtml(data.date)}${weekendTag}${data.time ? ` · 🕐 ${escapeHtml(data.time)}` : ""} · ${escapeHtml(data.location || "")}</div>
         ${data.ticketAvailability === "ausverkauft" ? `<div class="cc-ticket-warning">🔴 Ausverkauft</div>` : data.ticketAvailability === "wenige" ? `<div class="cc-ticket-warning">⚠️ Nur noch wenige Tickets</div>` : ""}
         ${ccRenderSupportActsHtml(data.supportActs)}
         ${data.info ? `<div class="cc-card-info">${escapeHtml(data.info)}</div>` : ""}

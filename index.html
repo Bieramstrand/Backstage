@@ -482,15 +482,6 @@
     40%, 60% { transform: translateX(4px); }
   }
 
-  .cc-artist-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 20px; }
-  .cc-chip {
-    background: rgba(240,239,236,0.06);
-    border: 1px solid rgba(240,239,236,0.18);
-    padding: 6px 12px; border-radius: 20px; font-size: 13px;
-    display: inline-flex; align-items: center; gap: 8px; color: var(--paper);
-  }
-  .cc-chip .cc-remove-btn { color: var(--muted); cursor: pointer; font-weight: bold; padding: 2px; }
-  .cc-chip .cc-remove-btn:hover { color: var(--err); }
 
   .cc-filter-bar { margin-bottom: 20px; }
 
@@ -549,7 +540,8 @@
   .cc-dup-hint span { min-width: 0; overflow-wrap: anywhere; }
   .cc-archive { margin: 0 0 14px; padding: 12px 14px; border-radius: 10px; background: var(--bg-soft); border: 1px solid rgba(240,239,236,0.1); }
   .cc-archive-title { font-size: 12px; font-weight: 600; color: var(--muted); margin-bottom: 4px; }
-  .cc-archive-letter { font-size: 11px; font-weight: 700; color: var(--amber); letter-spacing: 0.08em; margin: 12px 0 2px; }
+  .cc-archive-letter { font-size: 11px; font-weight: 700; color: var(--amber); letter-spacing: 0.08em; margin: 14px 0 2px; }
+  .cc-archive-letter:first-child { margin-top: 0; }
   .cc-archive-row { display: flex; align-items: center; gap: 8px; padding: 7px 0; border-bottom: 1px solid rgba(240,239,236,0.06); font-size: 14px; }
   .cc-archive-name { flex: 1; min-width: 0; overflow-wrap: anywhere; background: none; border: none; color: var(--paper); text-align: left; font: inherit; padding: 0; cursor: pointer; -webkit-tap-highlight-color: transparent; }
   .cc-archive-status { font-size: 11px; color: var(--muted); white-space: nowrap; flex-shrink: 0; }
@@ -938,33 +930,41 @@
 
       <!-- CONCERTS -->
       <section id="tab-concerts" class="tab-panel hidden">
-        <div class="section-header">
-          <div class="left"><span>🎸</span><h2>Konzerte</h2><span class="count-badge" id="cc-artist-count">0</span></div>
+        <div id="cc-main-view">
+          <div class="section-header">
+            <div class="left"><span>🎸</span><h2>Konzerte</h2><span class="count-badge" id="cc-artist-count">0</span></div>
+          </div>
+          <details style="margin:-8px 0 20px;">
+            <summary style="font-size:13px; color:var(--muted); cursor:pointer; list-style:none;">📍 Wie funktioniert der Hamburg-Radar? <span style="text-decoration:underline;">Mehr erfahren</span></summary>
+            <p style="font-size:13px; color:var(--muted); margin:8px 0 0;">Sobald ihr eine Band speichert, sucht Backstage automatisch nach kommenden Hamburg-Shows – und hält das laufend aktuell. Termine am Wochenende (Fr/Sa) sind extra umrandet. Die Bands sind alphabetisch sortiert, gefundene Shows springen aber trotzdem nach oben. Alle gespeicherten Bands findet ihr im Band Archiv.</p>
+          </details>
+
+          <div class="cc-add-artist-box">
+            <form id="cc-add-artist-form">
+              <div class="cc-input-row">
+                <input type="text" id="cc-artist-input" placeholder="Band (z. B. Fjørt, EQUAL SILENCE)…" required />
+                <button type="submit" class="btn-add">＋ Band</button>
+              </div>
+            </form>
+            <div class="cc-dup-hint hidden" id="cc-dup-hint"></div>
+          </div>
+
+          <div style="margin:0 0 12px; display:flex; flex-wrap:wrap; gap:8px;">
+            <button type="button" class="btn-promote" id="cc-archive-btn" style="font-size:13px; padding:8px 12px;">📚 Band Archiv</button>
+            <button type="button" class="btn-promote hidden" id="cc-toggle-all" style="font-size:13px; padding:8px 12px;">Alle aufklappen</button>
+          </div>
+
+          <div class="cc-widgets-feed" id="cc-widgets-feed"></div>
         </div>
-        <details style="margin:-8px 0 20px;">
-          <summary style="font-size:13px; color:var(--muted); cursor:pointer; list-style:none;">📍 Wie funktioniert der Hamburg-Radar? <span style="text-decoration:underline;">Mehr erfahren</span></summary>
-          <p style="font-size:13px; color:var(--muted); margin:8px 0 0;">Sobald ihr eine Band speichert, sucht Backstage automatisch nach kommenden Hamburg-Shows – und hält das laufend aktuell. Termine am Wochenende (Fr/Sa) sind extra umrandet. Die Bands sind alphabetisch sortiert, gefundene Shows springen aber trotzdem nach oben.</p>
-        </details>
 
-        <div class="cc-add-artist-box">
-          <form id="cc-add-artist-form">
-            <div class="cc-input-row">
-              <input type="text" id="cc-artist-input" placeholder="Band (z. B. Fjørt, EQUAL SILENCE)…" required />
-              <button type="submit" class="btn-add">＋ Band</button>
-            </div>
-          </form>
-          <div class="cc-dup-hint hidden" id="cc-dup-hint"></div>
+        <!-- Band Archiv: eigene Seite mit allen gespeicherten Bands -->
+        <div id="cc-archive-view" class="hidden">
+          <button class="btn-cancel" id="cc-archive-back" style="padding-left:0; margin-bottom:12px;">← Zurück zu den Konzerten</button>
+          <div class="section-header">
+            <div class="left"><span>📚</span><h2>Band Archiv</h2><span class="count-badge" id="cc-archive-count">0</span></div>
+          </div>
+          <div class="cc-archive" id="cc-archive-panel"></div>
         </div>
-
-        <div class="cc-artist-chips" id="cc-tracked-chips"></div>
-
-        <div style="margin:0 0 12px; display:flex; flex-wrap:wrap; gap:8px;">
-          <button type="button" class="btn-promote" id="cc-archive-btn" style="font-size:13px; padding:8px 12px;">📚 Band Archiv</button>
-          <button type="button" class="btn-promote hidden" id="cc-toggle-all" style="font-size:13px; padding:8px 12px;">Alle aufklappen</button>
-        </div>
-        <div class="cc-archive hidden" id="cc-archive-panel"></div>
-
-        <div class="cc-widgets-feed" id="cc-widgets-feed"></div>
       </section>
     </main>
 
@@ -1489,6 +1489,7 @@
     document.querySelectorAll(".tab-panel").forEach((p) => p.classList.add("hidden"));
     const panel = document.getElementById("tab-" + tabName);
     if (panel) panel.classList.remove("hidden");
+    if (tabName === "concerts") ccCloseArchive();
     if (tabName === "concerts" && !ccLoadedOnce) {
       ccLoadedOnce = true;
       renderCCArtistCards();
@@ -2918,57 +2919,10 @@
   const CC_CACHE_DAYS = 7; // Cache-Dauer für "kein Termin bekannt", danach wird automatisch neu abgefragt
   const CC_CACHE_DAYS_FOUND = 30; // Cache-Dauer für bereits gefundene Shows/Tour-Hinweise (länger, gegen KI-Inkonsistenz)
 
-  let ccChipsExpanded = false;
-  const CC_CHIPS_COLLAPSED_COUNT = 4;
-
+  // Die frühere Chips Liste ist entfallen, alle Bands stehen im Band Archiv.
+  // Der Name bleibt, damit alle bisherigen Aufrufe weiter funktionieren.
   function renderCCChips() {
     renderCCArchive();
-    const container = document.getElementById("cc-tracked-chips");
-    if (!container) return;
-    if (trackedArtists.length === 0) {
-      container.innerHTML = '<span style="font-size:12px; color:var(--muted);">Noch keine Bands gespeichert.</span>';
-      return;
-    }
-
-    // Alphabetisch sortiert anzeigen, dabei den echten Index im Original-Array je Band merken
-    const sorted = trackedArtists
-      .map((artist, originalIndex) => ({ artist, originalIndex }))
-      .sort((a, b) => a.artist.localeCompare(b.artist, "de", { sensitivity: "base" }));
-
-    const visible = ccChipsExpanded ? sorted : sorted.slice(0, CC_CHIPS_COLLAPSED_COUNT);
-    const remaining = sorted.length - visible.length;
-
-    let html = visible.map(({ artist, originalIndex }) => `
-      <div class="cc-chip">
-        <span>🎸 ${escapeHtml(artist)}</span>
-        <span class="cc-remove-btn" data-remove-artist="${originalIndex}">✕</span>
-      </div>`).join("");
-
-    if (remaining > 0) {
-      html += `<div class="cc-chip" id="cc-chips-more" style="cursor:pointer; border-style:dashed;">+ ${remaining} mehr</div>`;
-    } else if (ccChipsExpanded && sorted.length > CC_CHIPS_COLLAPSED_COUNT) {
-      html += `<div class="cc-chip" id="cc-chips-more" style="cursor:pointer; border-style:dashed;">weniger anzeigen</div>`;
-    }
-
-    container.innerHTML = html;
-
-    container.querySelectorAll("[data-remove-artist]").forEach((b) => {
-      b.addEventListener("click", () => {
-        const removed = trackedArtists.splice(Number(b.dataset.removeArtist), 1)[0];
-        if (removed && concertCache[removed.toLowerCase()]) delete concertCache[removed.toLowerCase()];
-        persist();
-        renderCCChips();
-        renderCCArtistCards();
-      });
-    });
-
-    const moreBtn = document.getElementById("cc-chips-more");
-    if (moreBtn) {
-      moreBtn.addEventListener("click", () => {
-        ccChipsExpanded = !ccChipsExpanded;
-        renderCCChips();
-      });
-    }
   }
 
   // Vergleich ohne Groß/Kleinschreibung, Umlaut Akzente und doppelte Leerzeichen
@@ -3049,13 +3003,16 @@
 
   function renderCCArchive() {
     const panel = document.getElementById("cc-archive-panel");
-    if (!panel || panel.classList.contains("hidden")) return;
+    const view = document.getElementById("cc-archive-view");
+    const count = document.getElementById("cc-archive-count");
+    if (count) count.textContent = trackedArtists.length;
+    if (!panel || !view || view.classList.contains("hidden")) return;
     if (trackedArtists.length === 0) {
       panel.innerHTML = '<div class="cc-archive-title">Noch keine Bands gespeichert.</div>';
       return;
     }
     const sorted = [...trackedArtists].sort((a, b) => a.localeCompare(b, "de", { sensitivity: "base" }));
-    let html = `<div class="cc-archive-title">Alle Bands (${sorted.length})</div>`;
+    let html = "";
     let lastLetter = "";
     sorted.forEach((artist) => {
       const first = artist.trim().charAt(0).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
@@ -3075,14 +3032,22 @@
     panel.innerHTML = html;
   }
 
+  function ccOpenArchive() {
+    document.getElementById("cc-main-view").classList.add("hidden");
+    document.getElementById("cc-archive-view").classList.remove("hidden");
+    renderCCArchive();
+    window.scrollTo(0, 0);
+  }
+
+  function ccCloseArchive() {
+    document.getElementById("cc-archive-view").classList.add("hidden");
+    document.getElementById("cc-main-view").classList.remove("hidden");
+  }
+
   (function wireCCArchive() {
-    const btn = document.getElementById("cc-archive-btn");
     const panel = document.getElementById("cc-archive-panel");
-    btn.addEventListener("click", () => {
-      const nowHidden = panel.classList.toggle("hidden");
-      btn.textContent = nowHidden ? "📚 Band Archiv" : "📚 Archiv schließen";
-      if (!nowHidden) renderCCArchive();
-    });
+    document.getElementById("cc-archive-btn").addEventListener("click", ccOpenArchive);
+    document.getElementById("cc-archive-back").addEventListener("click", () => { ccCloseArchive(); window.scrollTo(0, 0); });
     panel.addEventListener("click", (e) => {
       const rm = e.target.closest("[data-archive-remove]");
       if (rm) {
@@ -3092,10 +3057,8 @@
       }
       const go = e.target.closest("[data-archive-goto]");
       if (!go) return;
-      const artist = go.dataset.archiveGoto;
-      panel.classList.add("hidden");
-      btn.textContent = "📚 Band Archiv";
-      ccGoToArtist(artist);
+      ccCloseArchive();
+      ccGoToArtist(go.dataset.archiveGoto);
     });
   })();
 

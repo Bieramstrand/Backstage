@@ -167,7 +167,7 @@
   /* App shell */
   #app { display: none; min-height: 100vh; }
   header {
-    padding: calc(8px + env(safe-area-inset-top, 0px)) 24px 0;
+    padding: calc(22px + env(safe-area-inset-top, 0px)) 24px 0;
     overflow-x: hidden;
   }
   .wrap { max-width: 960px; margin: 0 auto; min-width: 0; }
@@ -416,6 +416,14 @@
   .nearby-food .nearby-meta { color: var(--muted); font-size: 12px; }
   .spot-img { width: 64px; height: 64px; object-fit: cover; border-radius: 8px; flex-shrink: 0; background: rgba(240,239,236,0.06); }
   .leaflet-container { font-family: inherit; background: #18181a; }
+  .spot-pin { background: transparent; border: none; }
+  .spot-pin span {
+    display: flex; align-items: center; justify-content: center;
+    width: 32px; height: 32px; border-radius: 50%;
+    background: #e8a33d; border: 2px solid #18181a; box-shadow: 0 2px 6px rgba(0,0,0,0.5);
+    font-size: 17px; line-height: 1;
+  }
+  .spot-pin.visited span { background: #9aa0a8; }
   #spots-map .leaflet-tile-pane { filter: invert(1) hue-rotate(180deg) brightness(0.92) contrast(0.88) saturate(0.55); }
   .leaflet-popup-content { color: #18181a; font-size: 13px; line-height: 1.4; }
   .leaflet-popup-content a { color: #b36f00; }
@@ -920,9 +928,9 @@
     <nav class="tabs">
       <button data-tab="timeline"><span class="bn-icon">🎫</span><span class="bn-label">Plano</span></button>
       <button data-tab="ideas"><span class="bn-icon">💡</span><span class="bn-label">Ideen</span></button>
-      <button data-tab="photos"><span class="bn-icon">📷</span><span class="bn-label">Foto/Video</span></button>
       <button data-tab="food"><span class="bn-icon">🍽️</span><span class="bn-label">Essen</span></button>
       <button data-tab="concerts"><span class="bn-icon">🎸</span><span class="bn-label">Konzerte</span></button>
+      <button data-tab="photos"><span class="bn-icon">📷</span><span class="bn-label">Foto/Video</span></button>
     </nav>
 
     <footer>Daten werden in eurer gemeinsamen Firebase-Datenbank gespeichert – auf jedem Gerät mit dieser Seite sichtbar.</footer>
@@ -2382,6 +2390,20 @@
     });
   }
 
+  // Symbol pro Art für die Karte. Bereits besuchte Locations erscheinen grau, noch nicht besuchte golden.
+  const SPOT_MAP_EMOJI = {
+    "Restaurant": "🍽️", "Bar": "🍸", "Craftbeer Bar": "🍺", "Imbiss": "🌭", "Burger": "🍔", "Sonstiges": "📍",
+    "Café": "☕", "Biergarten": "🍺",
+  };
+  function spotMapIcon(sp) {
+    const emoji = SPOT_MAP_EMOJI[sp.type] || "📍";
+    return L.divIcon({
+      className: "spot-pin" + (sp.visited ? " visited" : ""),
+      html: `<span>${emoji}</span>`,
+      iconSize: [32, 32], iconAnchor: [16, 16], popupAnchor: [0, -18],
+    });
+  }
+
   async function renderSpotsMap() {
     const wrap = document.getElementById("spots-map-wrap");
     if (!wrap || wrap.classList.contains("hidden")) return;
@@ -2403,10 +2425,7 @@
       if (typeof sp.lat !== "number" || typeof sp.lng !== "number") return;
       const addr = [sp.street, [sp.zip, sp.city].filter(Boolean).join(" ")].filter(Boolean).join(", ");
       const gmaps = "https://www.google.com/maps/search/?api=1&query=" + encodeURIComponent([sp.name, sp.street, sp.zip, sp.city].filter(Boolean).join(" "));
-      const m = L.circleMarker([sp.lat, sp.lng], {
-        radius: 9, weight: 2, color: "#18181a",
-        fillColor: sp.visited ? "#9aa0a8" : "#e8a33d", fillOpacity: 0.95,
-      }).addTo(spotsMapLayer);
+      const m = L.marker([sp.lat, sp.lng], { icon: spotMapIcon(sp) }).addTo(spotsMapLayer);
       const popImg = /^https:\/\//.test(sp.imageUrl || "") ? `<img src="${escapeHtml(sp.imageUrl)}" alt="" style="display:block; width:200px; max-width:100%; height:110px; object-fit:cover; border-radius:6px; margin-bottom:6px;" />` : "";
       m.bindPopup(`${popImg}<b>${escapeHtml(sp.name)}</b><br>${escapeHtml(sp.type || "Restaurant")}${sp.rating ? " " + "★".repeat(sp.rating) : ""}${sp.visited ? " (besucht)" : ""}${addr ? "<br>" + escapeHtml(addr) : ""}<br><a href="${escapeHtml(gmaps)}" target="_blank" rel="noreferrer">In Google Maps öffnen</a>`, { minWidth: 200 });
       pts.push([sp.lat, sp.lng]);

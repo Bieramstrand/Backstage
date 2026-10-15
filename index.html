@@ -147,6 +147,7 @@
     background: rgba(240,239,236,0.06);
     border: 1px solid rgba(240,239,236,0.18);
     color: var(--paper);
+    font-size: 16px; /* unter 16px zoomt iOS beim Antippen ins Feld hinein und bleibt gezoomt */
   }
   textarea { resize: vertical; }
 
@@ -393,7 +394,6 @@
     padding: 16px; border-radius: 10px; background: var(--bg-soft);
     border: 1px solid rgba(240,239,236,0.1); margin-bottom: 12px;
   }
-  .spot-card.visited { opacity: 0.72; }
   .spot-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; cursor: pointer; -webkit-tap-highlight-color: transparent; }
   .spot-head .title-row { min-width: 0; }
   .spot-chevron { flex-shrink: 0; color: var(--muted); font-size: 14px; padding: 2px 4px; }
@@ -436,6 +436,8 @@
   .nearby-food .nearby-meta { color: var(--muted); font-size: 12px; }
   .spot-img { width: 64px; height: 64px; object-fit: cover; border-radius: 8px; flex-shrink: 0; background: rgba(240,239,236,0.06); }
   .leaflet-container { font-family: inherit; background: #18181a; }
+  .spot-card.permclosed { opacity: 0.7; }
+  .spot-pin.closed span { background: #9aa0a8; }
   .spot-pin { background: transparent; border: none; }
   .spot-pin span {
     display: flex; align-items: center; justify-content: center;
@@ -443,7 +445,6 @@
     background: #e8a33d; border: 2px solid #18181a; box-shadow: 0 2px 6px rgba(0,0,0,0.5);
     font-size: 17px; line-height: 1;
   }
-  .spot-pin.visited span { background: #9aa0a8; }
   #spots-map .leaflet-tile-pane { filter: invert(1) hue-rotate(180deg) brightness(0.92) contrast(0.88) saturate(0.55); }
   .leaflet-bar a.spots-map-recenter { display: flex; align-items: center; justify-content: center; width: 34px; height: 34px; padding: 0; color: #18181a; }
   .leaflet-popup-content { color: #18181a; font-size: 13px; line-height: 1.4; }
@@ -648,7 +649,7 @@
           <a href="#" id="admin-notes-back" style="font-size:13px; color:var(--muted); text-decoration:none; flex-shrink:0;">← Zurück</a>
         </div>
         <div id="admin-visit-stats" style="margin-bottom:20px; padding:16px; border-radius:10px; background:rgba(240,239,236,0.06); border:1px solid rgba(240,239,236,0.14);"></div>
-        <textarea id="admin-notes-textarea" rows="20" placeholder="Ideen, Notizen, To-dos für die Website…" style="width:100%; padding:14px; border-radius:8px; background:rgba(240,239,236,0.06); border:1px solid rgba(240,239,236,0.18); color:var(--paper); font-family:inherit; font-size:14px; resize:vertical; box-sizing:border-box;"></textarea>
+        <textarea id="admin-notes-textarea" rows="20" placeholder="Ideen, Notizen, To-dos für die Website…" style="width:100%; padding:14px; border-radius:8px; background:rgba(240,239,236,0.06); border:1px solid rgba(240,239,236,0.18); color:var(--paper); font-family:inherit; font-size:16px; resize:vertical; box-sizing:border-box;"></textarea>
         <div style="display:flex; justify-content:flex-end; align-items:center; gap:10px; margin-top:12px;">
           <span id="admin-save-status" style="font-size:12px; color:var(--muted);"></span>
           <button type="button" id="admin-notes-save" class="btn-save">Speichern</button>
@@ -778,7 +779,7 @@
           <div class="left"><span>🍽️</span><h2>Was essen wir?</h2><span class="count-badge" id="spot-count">0</span></div>
           <button class="btn-add small" id="toggle-spot-form">＋ Location</button>
         </div>
-        <p style="font-size:14px; color:var(--muted); margin:-8px 0 20px;">Restaurants, Bars, Craftbeer Bars, Burger und Imbisse, die wir ausprobieren wollen oder schon gut fanden.</p>
+        <p style="font-size:14px; color:var(--muted); margin:-8px 0 20px;">Restaurants, Bars, Craftbeer Bars, Burger, Pizza, Steak und Imbisse, die wir ausprobieren wollen oder schon gut fanden.</p>
         <div class="cc-add-artist-box">
           <form id="spot-search-form">
             <div class="cc-input-row">
@@ -804,6 +805,11 @@
               <option>Craftbeer Bar</option>
               <option>Imbiss</option>
               <option>Burger</option>
+              <option>Chicken</option>
+              <option>Griechisch</option>
+              <option>All You Can Eat</option>
+              <option>Pizza</option>
+              <option>Steak</option>
               <option>Sonstiges</option>
             </select>
           </label>
@@ -1154,8 +1160,10 @@
     const val = document.getElementById("pw-input").value;
     const errEl = document.getElementById("pw-error");
     if (val === PASSWORD) {
+      if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
       document.getElementById("lock-screen").style.display = "none";
       document.getElementById("app").style.display = "block";
+      window.scrollTo(0, 0);
       unlocked = true;
       ccLogVisit();
     } else {
@@ -1490,11 +1498,11 @@
     document.querySelectorAll(".tab-panel").forEach((p) => p.classList.add("hidden"));
     const panel = document.getElementById("tab-" + tabName);
     if (panel) panel.classList.remove("hidden");
-    // Auf Essen, Konzerte und Foto/Video ist der News Button samt Kopfzeile ausgeblendet
+    // Auf Essen, Konzerte und Foto/Video ist der News Button ausgeblendet.
+    // Der Kopfbereich bleibt bestehen, weil er den Abstand zur Statusleiste (Notch) hält.
     const hideNews = tabName === "food" || tabName === "concerts" || tabName === "photos";
-    const headerEl = document.querySelector("#app > header");
-    if (headerEl) headerEl.classList.toggle("hidden", hideNews && document.getElementById("config-warning").classList.contains("hidden"));
     document.getElementById("news-top-btn").classList.toggle("hidden", hideNews);
+    document.querySelector("#app > header .header-title-row").classList.toggle("hidden", hideNews);
     if (tabName === "concerts") ccCloseArchive();
     if (tabName === "concerts" && !ccLoadedOnce) {
       ccLoadedOnce = true;
@@ -2144,6 +2152,7 @@
   const HOURS_ORDER = ["mo", "di", "mi", "do", "fr", "sa", "so"];
   const HOURS_LABELS = { mo: "Mo", di: "Di", mi: "Mi", do: "Do", fr: "Fr", sa: "Sa", so: "So" };
   const HOURS_STALE_DAYS = 60; // danach werden die Zeiten automatisch neu gesucht
+  const STATUS_CHECK_DAYS = 30; // so oft wird geprüft, ob die Location noch existiert
   const HOURS_RETRY_DAYS = 7; // wurde nichts gefunden, nicht öfter als einmal pro Woche versuchen
   const hoursSessionTried = new Set(); // bei Fehlern pro Sitzung nur ein Versuch
   const hoursLoading = new Set();
@@ -2218,6 +2227,7 @@
 
   function spotStatusHtml(sp) {
     if (hoursLoading.has(sp.id)) return `<div class="spot-open">Öffnungszeiten werden gesucht …</div>`;
+    if (sp.closed) return `<div class="spot-open is-closed"><span class="dot"></span>⛔ Dauerhaft geschlossen</div>`;
     const st = spotOpenStatus(sp.hours);
     if (!st) return "";
     return `<div class="spot-open ${st.open ? "is-open" : "is-closed"}"><span class="dot"></span>${escapeHtml(st.label)}</div>`;
@@ -2225,6 +2235,12 @@
   function spotHoursBlockHtml(sp) {
     const title = `<div class="spot-hours-title">🕐 Öffnungszeiten</div>`;
     if (hoursLoading.has(sp.id)) return title + `<div class="spot-hours-meta" style="margin-top:0;">Wird gesucht …</div>`;
+    if (sp.closed) {
+      const closedWhen = sp.closed.at ? new Date(sp.closed.at).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric" }) : "";
+      return `<div class="spot-hours-title">⛔ Dauerhaft geschlossen</div>`
+        + (sp.closed.note ? `<div class="spot-hours-meta" style="margin-top:0; font-size:13px;">${escapeHtml(sp.closed.note)}</div>` : "")
+        + `<div class="spot-hours-meta">Laut Websuche${closedWhen ? " vom " + closedWhen : ""}, bitte prüfen.<button type="button" class="spot-hours-refresh" data-refresh-hours="${sp.id}">Neu prüfen</button><button type="button" class="spot-hours-refresh" data-reopen-spot="${sp.id}">Ist noch offen</button></div>`;
+    }
     if (!sp.hours) {
       return title + `<div class="spot-hours-meta" style="margin-top:0;">Noch nicht gefunden.<button type="button" class="spot-hours-refresh" data-refresh-hours="${sp.id}">Jetzt suchen</button></div>`;
     }
@@ -2256,6 +2272,13 @@
       const cur = spots.find((x) => x.id === id) || spIn; // die Liste kann zwischendurch neu geladen worden sein
       cur.hoursTried = Date.now();
       if (data && data.hours) { cur.hours = data.hours; cur.hoursAt = Date.now(); }
+      if (data && data.status === "closed") {
+        cur.closed = { note: String(data.note || "").slice(0, 120), at: Date.now() };
+        cur.statusAt = Date.now();
+      } else if (data && (data.status === "open" || data.status === "unknown")) {
+        if (data.status === "open") delete cur.closed; // wieder aktiv gemeldet
+        cur.statusAt = Date.now();
+      }
       changed = true;
     } catch (err) {
       console.error("Öffnungszeiten Suche fehlgeschlagen", err);
@@ -2279,7 +2302,11 @@
         const now = Date.now();
         const stale = !!sp.hours && !!sp.hoursAt && now - sp.hoursAt > HOURS_STALE_DAYS * 86400000;
         const retryOk = !sp.hoursTried || now - sp.hoursTried > HOURS_RETRY_DAYS * 86400000;
-        if ((!sp.hours || stale) && retryOk) {
+        // Status Prüfung: noch nie geprüft, oder die letzte Prüfung ist über 30 Tage her (bereits als geschlossen markierte werden nicht erneut abgefragt)
+        const neverChecked = !sp.statusAt && !sp.closed;
+        const statusDue = !sp.closed && !!sp.statusAt && now - sp.statusAt > STATUS_CHECK_DAYS * 86400000;
+        if (((!sp.hours || stale || statusDue) && retryOk) || neverChecked) {
+          hoursSessionTried.add(id); // pro Sitzung höchstens ein Versuch
           if (await fetchSpotHours(sp)) changed = true;
         }
       }
@@ -2296,6 +2323,18 @@
     if (sp && (await fetchSpotHours(sp))) persist();
   });
 
+  document.getElementById("spots-list").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-reopen-spot]");
+    if (!b) return;
+    e.stopPropagation();
+    const sp = spots.find((x) => x.id === b.dataset.reopenSpot);
+    if (!sp) return;
+    delete sp.closed;
+    sp.statusAt = Date.now(); // die Markierung war ein Irrtum, nächste Prüfung erst in 30 Tagen
+    persist();
+    renderSpots();
+  });
+
   function renderSpots() {
     document.getElementById("spot-count").textContent = spots.length;
     setTimeout(() => { renderSpotsMap(); fillNearby(); refreshNearbyData(); }, 0);
@@ -2307,14 +2346,14 @@
       return;
     }
     empty.classList.add("hidden");
-    // Noch nicht besuchte Locations zuerst, innerhalb davon die neuesten oben
-    const sorted = [...spots].sort((a, b) => (a.visited ? 1 : 0) - (b.visited ? 1 : 0));
+    // Dauerhaft geschlossene Locations stehen ganz unten
+    const sorted = [...spots].sort((a, b) => (a.closed ? 1 : 0) - (b.closed ? 1 : 0));
     list.innerHTML = sorted.map((sp) => {
       const addrLine = [sp.street, [sp.zip, sp.city].filter(Boolean).join(" ")].filter(Boolean).join(", ");
       const mapsUrl = "https://www.google.com/maps/search/?api=1&query=" + encodeURIComponent([sp.name, sp.street, sp.zip, sp.city].filter(Boolean).join(" "));
       const safeLink = sp.link && /^https?:\/\//i.test(sp.link) ? sp.link : "";
       return `
-      <div class="spot-card${sp.visited ? " visited" : ""}" id="spot-${sp.id}">
+      <div class="spot-card${sp.closed ? " permclosed" : ""}" id="spot-${sp.id}">
         <div class="spot-head" data-toggle-spot="${sp.id}" role="button" tabindex="0" aria-expanded="${openSpots.has(sp.id)}">
           <div style="min-width:0; flex:1;">
             <div class="title-row"><span>🍽️</span><span style="overflow-wrap:anywhere;">${escapeHtml(sp.name)}</span></div>
@@ -2330,7 +2369,6 @@
               <span class="spot-tag">${escapeHtml(sp.type || "Restaurant")}</span>
               ${sp.rating ? `<span class="spot-tag">${"★".repeat(sp.rating)}</span>` : ""}
               <span>von ${escapeHtml(sp.who)}</span>
-              ${sp.visited ? `<span class="spot-tag">Besucht</span>` : ""}
             </p>
             ${addrLine ? `<p class="note" style="margin-top:4px;">📍 ${escapeHtml(addrLine)}</p>` : ""}
             ${sp.note ? `<p class="note">${escapeHtml(sp.note)}</p>` : ""}
@@ -2344,7 +2382,6 @@
         <div class="spot-links">
           <a class="event-tile-btn" href="${escapeHtml(mapsUrl)}" target="_blank" rel="noreferrer">📍 Karte</a>
           ${safeLink ? `<a class="event-tile-btn" href="${escapeHtml(safeLink)}" target="_blank" rel="noreferrer">🔗 Website</a>` : ""}
-          <button type="button" class="btn-promote" data-toggle-visited="${sp.id}">${sp.visited ? "Wieder offen" : "Schon besucht"}</button>
         </div>
         ${commentsHtml(sp.id, sp.comments)}
         </div>
@@ -2375,15 +2412,6 @@
           try { storage.refFromURL(gone.imageUrl).delete().catch(() => {}); } catch (err) { /* ignorieren */ }
         }
         spots = spots.filter((x) => x.id !== b.dataset.removeSpot);
-        persist();
-        renderSpots();
-      });
-    });
-    document.querySelectorAll("[data-toggle-visited]").forEach((b) => {
-      b.addEventListener("click", () => {
-        const sp = spots.find((x) => x.id === b.dataset.toggleVisited);
-        if (!sp) return;
-        sp.visited = !sp.visited;
         persist();
         renderSpots();
       });
@@ -2560,7 +2588,7 @@
       const hide = () => { el.innerHTML = ""; el.classList.add("hidden"); };
       if (!ev || typeof ev.lat !== "number" || typeof ev.lng !== "number") return hide();
       const near = spots
-        .filter((sp) => typeof sp.lat === "number" && typeof sp.lng === "number")
+        .filter((sp) => !sp.closed && typeof sp.lat === "number" && typeof sp.lng === "number")
         .map((sp) => ({ sp, d: distanceM(ev.lat, ev.lng, sp.lat, sp.lng) }))
         .filter((x) => x.d <= NEARBY_RADIUS_M)
         .sort((a, b) => (b.sp.rating || 0) - (a.sp.rating || 0) || a.d - b.d)
@@ -2569,21 +2597,21 @@
       el.classList.remove("hidden");
       el.innerHTML = `<div class="nearby-title">🍽️ ESSEN IN DER NÄHE</div>` + near.map(({ sp, d }) => {
         const url = "https://www.google.com/maps/search/?api=1&query=" + encodeURIComponent([sp.name, sp.street, sp.zip, sp.city].filter(Boolean).join(" "));
-        const meta = [sp.type || "Restaurant", sp.rating ? "★".repeat(sp.rating) : "", "ca. " + fmtDistance(d), hoursOnDate(sp, ev.date), sp.visited ? "schon besucht" : ""].filter(Boolean).join(" · ");
+        const meta = [sp.type || "Restaurant", sp.rating ? "★".repeat(sp.rating) : "", "ca. " + fmtDistance(d), hoursOnDate(sp, ev.date)].filter(Boolean).join(" · ");
         return `<div class="nearby-row"><a href="${escapeHtml(url)}" target="_blank" rel="noreferrer">${escapeHtml(sp.name)}</a> <span class="nearby-meta">${escapeHtml(meta)}</span></div>`;
       }).join("");
     });
   }
 
-  // Symbol pro Art für die Karte. Bereits besuchte Locations erscheinen grau, noch nicht besuchte golden.
+  // Symbol pro Art für die Karte
   const SPOT_MAP_EMOJI = {
-    "Restaurant": "🍽️", "Bar": "🍸", "Craftbeer Bar": "🍺", "Imbiss": "🌭", "Burger": "🍔", "Sonstiges": "📍",
+    "Restaurant": "🍽️", "Bar": "🍸", "Craftbeer Bar": "🍺", "Imbiss": "🌭", "Burger": "🍔", "Chicken": "🍗", "Griechisch": "🥙", "All You Can Eat": "🍲", "Pizza": "🍕", "Steak": "🥩", "Sonstiges": "📍",
     "Café": "☕", "Biergarten": "🍺",
   };
   function spotMapIcon(sp) {
     const emoji = SPOT_MAP_EMOJI[sp.type] || "📍";
     return L.divIcon({
-      className: "spot-pin" + (sp.visited ? " visited" : ""),
+      className: "spot-pin" + (sp.closed ? " closed" : ""),
       html: `<span>${emoji}</span>`,
       iconSize: [32, 32], iconAnchor: [16, 16], popupAnchor: [0, -18],
     });
@@ -2639,7 +2667,7 @@
       const gmaps = "https://www.google.com/maps/search/?api=1&query=" + encodeURIComponent([sp.name, sp.street, sp.zip, sp.city].filter(Boolean).join(" "));
       const m = L.marker([sp.lat, sp.lng], { icon: spotMapIcon(sp) }).addTo(spotsMapLayer);
       const popImg = /^https:\/\//.test(sp.imageUrl || "") ? `<img src="${escapeHtml(sp.imageUrl)}" alt="" style="display:block; width:200px; max-width:100%; height:110px; object-fit:cover; border-radius:6px; margin-bottom:6px;" />` : "";
-      m.bindPopup(() => { const st = spotOpenStatus(sp.hours); return `${popImg}<b>${escapeHtml(sp.name)}</b><br>${escapeHtml(sp.type || "Restaurant")}${sp.rating ? " " + "★".repeat(sp.rating) : ""}${sp.visited ? " (besucht)" : ""}${st ? "<br>" + (st.open ? "🟢 " : "🔴 ") + escapeHtml(st.label) : ""}${addr ? "<br>" + escapeHtml(addr) : ""}<br><a href="${escapeHtml(gmaps)}" target="_blank" rel="noreferrer">In Google Maps öffnen</a>`; }, { minWidth: 200 });
+      m.bindPopup(() => { const st = sp.closed ? null : spotOpenStatus(sp.hours); return `${popImg}<b>${escapeHtml(sp.name)}</b><br>${escapeHtml(sp.type || "Restaurant")}${sp.rating ? " " + "★".repeat(sp.rating) : ""}${sp.closed ? "<br>⛔ Dauerhaft geschlossen" : ""}${st ? "<br>" + (st.open ? "🟢 " : "🔴 ") + escapeHtml(st.label) : ""}${addr ? "<br>" + escapeHtml(addr) : ""}<br><a href="${escapeHtml(gmaps)}" target="_blank" rel="noreferrer">In Google Maps öffnen</a>`; }, { minWidth: 200 });
       pts.push([sp.lat, sp.lng]);
     });
     spotsMapPts = pts;
@@ -2767,7 +2795,7 @@
     el.style.color = isErr ? "var(--err)" : "var(--muted)";
   }
   let spotImageRemove = false;
-  const SPOT_TYPES = ["Restaurant", "Bar", "Craftbeer Bar", "Imbiss", "Burger", "Sonstiges"];
+  const SPOT_TYPES = ["Restaurant", "Bar", "Craftbeer Bar", "Imbiss", "Burger", "Chicken", "Griechisch", "All You Can Eat", "Pizza", "Steak", "Sonstiges"];
   // Bestehende Einträge mit einer früheren Art (z. B. Café, Biergarten) behalten ihre Art beim Bearbeiten,
   // dafür wird die Art nur für diesen Eintrag vorübergehend in der Auswahl ergänzt.
   function setSpotTypeForEdit(t) {
@@ -2926,14 +2954,14 @@
         const placeChanged = ["name", "street", "zip", "city"].some((k) => (old[k] || "") !== (spotData[k] || ""));
         spots[idx] = { ...old, ...spotData };
         // Wurde der Ort geändert, gelten die alten Öffnungszeiten nicht mehr
-        if (placeChanged) { delete spots[idx].hours; delete spots[idx].hoursAt; delete spots[idx].hoursTried; }
+        if (placeChanged) { delete spots[idx].hours; delete spots[idx].hoursAt; delete spots[idx].hoursTried; delete spots[idx].closed; delete spots[idx].statusAt; }
       }
       editingSpotId = null;
       btn.textContent = "Speichern";
     } else {
       const newSpotId = uid();
       openSpots.add(newSpotId);
-      spots.unshift({ id: newSpotId, createdAt: Date.now(), visited: false, ...spotData });
+      spots.unshift({ id: newSpotId, createdAt: Date.now(), ...spotData });
     }
     if (oldImageToDelete && storage) {
       try { storage.refFromURL(oldImageToDelete).delete().catch(() => {}); } catch (err) { /* ignorieren */ }

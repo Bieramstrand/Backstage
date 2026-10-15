@@ -548,6 +548,12 @@
   .cc-archive-name { flex: 1; min-width: 0; overflow-wrap: anywhere; background: none; border: none; color: var(--paper); text-align: left; font: inherit; padding: 0; cursor: pointer; -webkit-tap-highlight-color: transparent; }
   .cc-archive-status { font-size: 11px; color: var(--muted); white-space: nowrap; flex-shrink: 0; }
   .cc-archive-status.hh { color: var(--amber); font-weight: 600; }
+  .btn-back { display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 11px 18px; margin: 0 0 16px; border-radius: 999px; border: 1px solid var(--amber); background: rgba(232,163,61,0.12); color: var(--amber); font-size: 15px; font-weight: 600; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+  .btn-back:active { background: rgba(232,163,61,0.25); }
+  .btn-back.bottom { display: flex; width: 100%; margin: 18px 0 0; }
+  .stars-on { color: var(--amber); }
+  .stars-off { color: var(--muted); opacity: 0.45; }
+  .spot-stars { font-size: 12px; letter-spacing: 1px; margin-top: 3px; }
   .cc-card-head-main { min-width: 0; flex: 1 1 auto; }
   .cc-card-head-main .cc-card-artist { display: block; }
   .cc-card-header.cc-clickable { cursor: pointer; -webkit-tap-highlight-color: transparent; }
@@ -774,6 +780,7 @@
 
       <!-- ESSEN -->
       <section id="tab-food" class="tab-panel hidden">
+        <div id="spots-main-view">
         <div class="test-badge">Testphase</div>
         <div class="section-header compact">
           <div class="left"><span>🍽️</span><h2>Was essen wir?</h2><span class="count-badge" id="spot-count">0</span></div>
@@ -850,6 +857,7 @@
         <div style="margin:0 0 14px; display:flex; flex-wrap:wrap; gap:8px;">
           <button type="button" class="btn-promote" id="toggle-spots-map" style="font-size:13px; padding:8px 12px;">🗺️ Karte</button>
           <button type="button" class="btn-promote hidden" id="toggle-all-spots" style="font-size:13px; padding:8px 12px;">Alle aufklappen</button>
+          <button type="button" class="btn-promote" id="spots-archive-btn" style="font-size:13px; padding:8px 12px;">📚 Archiv</button>
         </div>
         <div id="spots-map-wrap" class="hidden">
           <div id="spots-map" style="height:380px; border-radius:10px; overflow:hidden; border:1px solid rgba(240,239,236,0.1);"></div>
@@ -859,6 +867,17 @@
         <div id="spots-empty" class="empty-state hidden">
           <div class="ic">🍽️</div>
           <p>Noch keine Locations eingetragen. Wo wollt ihr als Nächstes essen?</p>
+        </div>
+        </div>
+
+        <!-- Locations Archiv: eigene Seite mit allen Locations, sortiert nach Art -->
+        <div id="spots-archive-view" class="hidden">
+          <button type="button" class="btn-back" id="spots-archive-back">← Zurück zu den Locations</button>
+          <div class="section-header">
+            <div class="left"><span>📚</span><h2>Locations Archiv</h2><span class="count-badge" id="spots-archive-count">0</span></div>
+          </div>
+          <div class="cc-archive" id="spots-archive-panel"></div>
+          <button type="button" class="btn-back bottom" id="spots-archive-back-bottom">← Zurück zu den Locations</button>
         </div>
       </section>
 
@@ -966,11 +985,12 @@
 
         <!-- Band Archiv: eigene Seite mit allen gespeicherten Bands -->
         <div id="cc-archive-view" class="hidden">
-          <button class="btn-cancel" id="cc-archive-back" style="padding-left:0; margin-bottom:12px;">← Zurück zu den Konzerten</button>
+          <button type="button" class="btn-back" id="cc-archive-back">← Zurück zu den Konzerten</button>
           <div class="section-header">
             <div class="left"><span>📚</span><h2>Band Archiv</h2><span class="count-badge" id="cc-archive-count">0</span></div>
           </div>
           <div class="cc-archive" id="cc-archive-panel"></div>
+          <button type="button" class="btn-back bottom" id="cc-archive-back-bottom">← Zurück zu den Konzerten</button>
         </div>
       </section>
     </main>
@@ -1149,6 +1169,18 @@
   let editingAlbumId = null;
   let unlocked = false;
   const PASSWORD = "mbcc";
+
+  // Symbol pro Art, für Karte, Locations Liste und News
+  const SPOT_MAP_EMOJI = {
+    "Restaurant": "🍽️", "Bar": "🍸", "Craftbeer Bar": "🍺", "Imbiss": "🌭", "Burger": "🍔", "Chicken": "🍗", "Griechisch": "🥙", "All You Can Eat": "🍲", "Pizza": "🍕", "Steak": "🥩", "Sonstiges": "📍",
+    "Café": "☕", "Biergarten": "🍺",
+  };
+  function spotEmoji(sp) { return SPOT_MAP_EMOJI[sp && sp.type] || "🍽️"; }
+  // Fünf Sterne: vergebene in Gelb, übrige blass (auch ohne Bewertung)
+  function spotStarsHtml(rating) {
+    const r = Math.max(0, Math.min(5, parseInt(rating, 10) || 0));
+    return `<span class="stars-on">${"★".repeat(r)}</span><span class="stars-off">${"★".repeat(5 - r)}</span>`;
+  }
   const MAX_IMAGE_SIZE = 15 * 1024 * 1024;
   const MAX_VIDEO_SIZE = 100 * 1024 * 1024;
   const MAX_ATTACHMENT_SIZE = 20 * 1024 * 1024;
@@ -1360,7 +1392,7 @@
     });
 
     spots.forEach((sp) => {
-      if (sp.createdAt) entries.push({ ts: sp.createdAt, icon: "🍽️", html: `<b>${escapeHtml(sp.who)}</b> hat eine Location eingetragen: <b>${escapeHtml(sp.name)}</b>`, tab: "food", targetId: `spot-${sp.id}` });
+      if (sp.createdAt) entries.push({ ts: sp.createdAt, icon: spotEmoji(sp), html: `<b>${escapeHtml(sp.who)}</b> hat eine Location eingetragen: <b>${escapeHtml(sp.name)}</b>`, tab: "food", targetId: `spot-${sp.id}` });
     });
 
     // Fotos aus demselben Upload-Vorgang (batchId) zusammenfassen, wenn es mehr als 2 sind –
@@ -1504,6 +1536,7 @@
     document.getElementById("news-top-btn").classList.toggle("hidden", hideNews);
     document.querySelector("#app > header .header-title-row").classList.toggle("hidden", hideNews);
     if (tabName === "concerts") ccCloseArchive();
+    if (tabName === "food") closeSpotsArchive();
     if (tabName === "concerts" && !ccLoadedOnce) {
       ccLoadedOnce = true;
       renderCCArtistCards();
@@ -2340,6 +2373,7 @@
     setTimeout(() => { renderSpotsMap(); fillNearby(); refreshNearbyData(); }, 0);
     const list = document.getElementById("spots-list");
     const empty = document.getElementById("spots-empty");
+    renderSpotsArchive();
     if (spots.length === 0) {
       list.innerHTML = "";
       empty.classList.remove("hidden");
@@ -2356,7 +2390,8 @@
       <div class="spot-card${sp.closed ? " permclosed" : ""}" id="spot-${sp.id}">
         <div class="spot-head" data-toggle-spot="${sp.id}" role="button" tabindex="0" aria-expanded="${openSpots.has(sp.id)}">
           <div style="min-width:0; flex:1;">
-            <div class="title-row"><span>🍽️</span><span style="overflow-wrap:anywhere;">${escapeHtml(sp.name)}</span></div>
+            <div class="title-row"><span>${spotEmoji(sp)}</span><span style="overflow-wrap:anywhere;">${escapeHtml(sp.name)}</span></div>
+            ${sp.rating ? `<div class="spot-stars" title="Bewertung">${spotStarsHtml(sp.rating)}</div>` : ""}
             <div class="spot-open-slot" data-open-slot="${sp.id}">${spotStatusHtml(sp)}</div>
           </div>
           <span class="spot-chevron">${openSpots.has(sp.id) ? "▴" : "▾"}</span>
@@ -2454,6 +2489,62 @@
     btn.classList.toggle("hidden", spots.length < 2);
     btn.textContent = spots.length > 0 && spots.every((sp) => openSpots.has(sp.id)) ? "Alle zuklappen" : "Alle aufklappen";
   }
+  // ---- Locations Archiv: alle Locations nach Art sortiert auf einer eigenen Seite ----
+  function renderSpotsArchive() {
+    const count = document.getElementById("spots-archive-count");
+    const panel = document.getElementById("spots-archive-panel");
+    const view = document.getElementById("spots-archive-view");
+    if (count) count.textContent = spots.length;
+    if (!panel || !view || view.classList.contains("hidden")) return;
+    if (spots.length === 0) {
+      panel.innerHTML = '<div class="cc-archive-title">Noch keine Locations eingetragen.</div>';
+      return;
+    }
+    const groups = {};
+    spots.forEach((sp) => { const t = sp.type || "Restaurant"; (groups[t] = groups[t] || []).push(sp); });
+    const known = Object.keys(SPOT_MAP_EMOJI).filter((t) => t !== "Sonstiges");
+    const others = Object.keys(groups).filter((t) => !known.includes(t) && t !== "Sonstiges").sort((a, b) => a.localeCompare(b, "de"));
+    const order = [...known, ...others, "Sonstiges"].filter((t) => groups[t]);
+    let html = "";
+    order.forEach((t) => {
+      const list = groups[t].slice().sort((a, b) => (a.closed ? 1 : 0) - (b.closed ? 1 : 0) || (a.name || "").localeCompare(b.name || "", "de", { sensitivity: "base" }));
+      html += `<div class="cc-archive-letter">${escapeHtml(SPOT_MAP_EMOJI[t] || "🍽️")} ${escapeHtml(t)} · ${list.length}</div>`;
+      list.forEach((sp) => {
+        html += `
+        <div class="cc-archive-row">
+          <button type="button" class="cc-archive-name" data-spots-goto="${escapeHtml(sp.id)}">${escapeHtml(sp.name)}</button>
+          <span class="cc-archive-status">${sp.closed ? "⛔ " : ""}${spotStarsHtml(sp.rating)}</span>
+        </div>`;
+      });
+    });
+    panel.innerHTML = html;
+  }
+  function closeSpotsArchive() {
+    const view = document.getElementById("spots-archive-view");
+    if (!view) return;
+    view.classList.add("hidden");
+    document.getElementById("spots-main-view").classList.remove("hidden");
+  }
+  document.getElementById("spots-archive-btn").addEventListener("click", () => {
+    document.getElementById("spots-main-view").classList.add("hidden");
+    document.getElementById("spots-archive-view").classList.remove("hidden");
+    renderSpotsArchive();
+    window.scrollTo(0, 0);
+  });
+  ["spots-archive-back", "spots-archive-back-bottom"].forEach((id) => {
+    document.getElementById(id).addEventListener("click", () => { closeSpotsArchive(); window.scrollTo(0, 0); });
+  });
+  document.getElementById("spots-archive-panel").addEventListener("click", (e) => {
+    const go = e.target.closest("[data-spots-goto]");
+    if (!go) return;
+    const id = go.dataset.spotsGoto;
+    closeSpotsArchive();
+    openSpots.add(id);
+    renderSpots();
+    const card = document.getElementById("spot-" + id);
+    if (card) card.scrollIntoView({ behavior: "smooth", block: "center" });
+  });
+
   document.getElementById("toggle-all-spots").addEventListener("click", () => {
     const allOpen = spots.every((sp) => openSpots.has(sp.id));
     if (allOpen) openSpots.clear(); else spots.forEach((sp) => openSpots.add(sp.id));
@@ -2603,11 +2694,6 @@
     });
   }
 
-  // Symbol pro Art für die Karte
-  const SPOT_MAP_EMOJI = {
-    "Restaurant": "🍽️", "Bar": "🍸", "Craftbeer Bar": "🍺", "Imbiss": "🌭", "Burger": "🍔", "Chicken": "🍗", "Griechisch": "🥙", "All You Can Eat": "🍲", "Pizza": "🍕", "Steak": "🥩", "Sonstiges": "📍",
-    "Café": "☕", "Biergarten": "🍺",
-  };
   function spotMapIcon(sp) {
     const emoji = SPOT_MAP_EMOJI[sp.type] || "📍";
     return L.divIcon({
@@ -3108,7 +3194,9 @@
   (function wireCCArchive() {
     const panel = document.getElementById("cc-archive-panel");
     document.getElementById("cc-archive-btn").addEventListener("click", ccOpenArchive);
-    document.getElementById("cc-archive-back").addEventListener("click", () => { ccCloseArchive(); window.scrollTo(0, 0); });
+    ["cc-archive-back", "cc-archive-back-bottom"].forEach((id) => {
+      document.getElementById(id).addEventListener("click", () => { ccCloseArchive(); window.scrollTo(0, 0); });
+    });
     panel.addEventListener("click", (e) => {
       const rm = e.target.closest("[data-archive-remove]");
       if (rm) {

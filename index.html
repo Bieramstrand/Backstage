@@ -445,6 +445,7 @@
   }
   .spot-pin.visited span { background: #9aa0a8; }
   #spots-map .leaflet-tile-pane { filter: invert(1) hue-rotate(180deg) brightness(0.92) contrast(0.88) saturate(0.55); }
+  .leaflet-bar a.spots-map-recenter { display: flex; align-items: center; justify-content: center; width: 34px; height: 34px; padding: 0; color: #18181a; }
   .leaflet-popup-content { color: #18181a; font-size: 13px; line-height: 1.4; }
   .leaflet-popup-content a { color: #b36f00; }
 
@@ -1489,6 +1490,11 @@
     document.querySelectorAll(".tab-panel").forEach((p) => p.classList.add("hidden"));
     const panel = document.getElementById("tab-" + tabName);
     if (panel) panel.classList.remove("hidden");
+    // Auf Essen, Konzerte und Foto/Video ist der News Button samt Kopfzeile ausgeblendet
+    const hideNews = tabName === "food" || tabName === "concerts" || tabName === "photos";
+    const headerEl = document.querySelector("#app > header");
+    if (headerEl) headerEl.classList.toggle("hidden", hideNews && document.getElementById("config-warning").classList.contains("hidden"));
+    document.getElementById("news-top-btn").classList.toggle("hidden", hideNews);
     if (tabName === "concerts") ccCloseArchive();
     if (tabName === "concerts" && !ccLoadedOnce) {
       ccLoadedOnce = true;
@@ -2411,7 +2417,7 @@
   }
 
   // ---- Karte für Essen: Leaflet mit OpenStreetMap Daten, Adressen werden über Nominatim in Koordinaten umgewandelt ----
-  let spotsMap = null, spotsMapLayer = null, leafletPromise = null, spotsGeocoding = false;
+  let spotsMap = null, spotsMapLayer = null, leafletPromise = null, spotsGeocoding = false, spotsMapPts = [];
   // Welche Karten in der Liste gerade aufgeklappt sind, standardmäßig sind alle zugeklappt
   const openSpots = new Set();
   function updateSpotsToggleAll() {
@@ -2583,6 +2589,16 @@
     });
   }
 
+  // Zentriert die Karte auf alle Locations (ohne Locations: Deutschland Übersicht)
+  function recenterSpotsMap() {
+    if (!spotsMap) return;
+    spotsMap.closePopup();
+    spotsMap.invalidateSize();
+    if (spotsMapPts.length === 1) spotsMap.setView(spotsMapPts[0], 15);
+    else if (spotsMapPts.length > 1) spotsMap.fitBounds(spotsMapPts, { padding: [30, 30], maxZoom: 15 });
+    else spotsMap.setView([51.1, 10.4], 6);
+  }
+
   async function renderSpotsMap() {
     const wrap = document.getElementById("spots-map-wrap");
     if (!wrap || wrap.classList.contains("hidden")) return;
@@ -2596,6 +2612,23 @@
         attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> Mitwirkende',
       }).addTo(spotsMap);
       spotsMapLayer = L.layerGroup().addTo(spotsMap);
+      // Button unten rechts: Karte wieder auf alle Locations zentrieren
+      const RecenterControl = L.Control.extend({
+        options: { position: "bottomright" },
+        onAdd() {
+          const bar = L.DomUtil.create("div", "leaflet-bar leaflet-control");
+          const a = L.DomUtil.create("a", "spots-map-recenter", bar);
+          a.href = "#";
+          a.setAttribute("role", "button");
+          a.setAttribute("title", "Karte zentrieren");
+          a.setAttribute("aria-label", "Karte zentrieren");
+          a.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="6.5"/><circle cx="12" cy="12" r="1.6" fill="currentColor"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg>';
+          L.DomEvent.disableClickPropagation(bar);
+          L.DomEvent.on(a, "click", (e) => { L.DomEvent.preventDefault(e); recenterSpotsMap(); });
+          return bar;
+        },
+      });
+      spotsMap.addControl(new RecenterControl());
     }
     spotsMap.invalidateSize();
     spotsMapLayer.clearLayers();
@@ -2609,8 +2642,8 @@
       m.bindPopup(() => { const st = spotOpenStatus(sp.hours); return `${popImg}<b>${escapeHtml(sp.name)}</b><br>${escapeHtml(sp.type || "Restaurant")}${sp.rating ? " " + "★".repeat(sp.rating) : ""}${sp.visited ? " (besucht)" : ""}${st ? "<br>" + (st.open ? "🟢 " : "🔴 ") + escapeHtml(st.label) : ""}${addr ? "<br>" + escapeHtml(addr) : ""}<br><a href="${escapeHtml(gmaps)}" target="_blank" rel="noreferrer">In Google Maps öffnen</a>`; }, { minWidth: 200 });
       pts.push([sp.lat, sp.lng]);
     });
-    if (pts.length === 1) spotsMap.setView(pts[0], 15);
-    else if (pts.length > 1) spotsMap.fitBounds(pts, { padding: [30, 30], maxZoom: 15 });
+    spotsMapPts = pts;
+    recenterSpotsMap();
     const missing = spots.length - pts.length;
     status.textContent = spots.length === 0
       ? "Noch keine Locations eingetragen."

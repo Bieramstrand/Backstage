@@ -515,7 +515,7 @@
     outline-offset: -1px;
   }
   .cc-card-header { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
-  .cc-card-artist { font-size: 13px; font-weight: 700; letter-spacing: 0.3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1 1 auto; min-width: 0; }
+  .cc-card-artist { font-size: 13px; font-weight: 700; letter-spacing: 0.3px; white-space: normal; overflow-wrap: anywhere; flex: 1 1 auto; min-width: 0; }
   .has-hamburg .cc-card-artist { font-size: 15px; text-transform: uppercase; }
   .cc-card-status { font-size: 12px; color: var(--muted); white-space: nowrap; flex-shrink: 0; text-align: right; margin-right: 4px; }
   .cc-card-date { font-size: 13px; font-weight: 700; color: var(--amber); }
@@ -545,6 +545,15 @@
   .cc-inline-remove:hover { background: rgba(255,80,80,0.15); color: #ff6b6b; }
   .cc-card-info { font-size: 12px; color: var(--muted); margin-top: 4px; }
   .cc-card-body-expanded { margin-top: 8px; }
+  .cc-dup-hint { margin-top: 8px; padding: 9px 12px; border-radius: 8px; background: rgba(232,163,61,0.1); border: 1px solid rgba(232,163,61,0.35); font-size: 13px; display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  .cc-dup-hint span { min-width: 0; overflow-wrap: anywhere; }
+  .cc-archive { margin: 0 0 14px; padding: 12px 14px; border-radius: 10px; background: var(--bg-soft); border: 1px solid rgba(240,239,236,0.1); }
+  .cc-archive-title { font-size: 12px; font-weight: 600; color: var(--muted); margin-bottom: 4px; }
+  .cc-archive-letter { font-size: 11px; font-weight: 700; color: var(--amber); letter-spacing: 0.08em; margin: 12px 0 2px; }
+  .cc-archive-row { display: flex; align-items: center; gap: 8px; padding: 7px 0; border-bottom: 1px solid rgba(240,239,236,0.06); font-size: 14px; }
+  .cc-archive-name { flex: 1; min-width: 0; overflow-wrap: anywhere; background: none; border: none; color: var(--paper); text-align: left; font: inherit; padding: 0; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+  .cc-archive-status { font-size: 11px; color: var(--muted); white-space: nowrap; flex-shrink: 0; }
+  .cc-archive-status.hh { color: var(--amber); font-weight: 600; }
   .cc-card-head-main { min-width: 0; flex: 1 1 auto; }
   .cc-card-head-main .cc-card-artist { display: block; }
   .cc-card-header.cc-clickable { cursor: pointer; -webkit-tap-highlight-color: transparent; }
@@ -944,13 +953,16 @@
               <button type="submit" class="btn-add">＋ Band</button>
             </div>
           </form>
+          <div class="cc-dup-hint hidden" id="cc-dup-hint"></div>
         </div>
 
         <div class="cc-artist-chips" id="cc-tracked-chips"></div>
 
-        <div style="margin:0 0 12px;">
+        <div style="margin:0 0 12px; display:flex; flex-wrap:wrap; gap:8px;">
+          <button type="button" class="btn-promote" id="cc-archive-btn" style="font-size:13px; padding:8px 12px;">📚 Band Archiv</button>
           <button type="button" class="btn-promote hidden" id="cc-toggle-all" style="font-size:13px; padding:8px 12px;">Alle aufklappen</button>
         </div>
+        <div class="cc-archive hidden" id="cc-archive-panel"></div>
 
         <div class="cc-widgets-feed" id="cc-widgets-feed"></div>
       </section>
@@ -1075,27 +1087,8 @@
     setTimeout(() => URL.revokeObjectURL(url), 2000);
   }
 
-  function commentsHtml(itemId, comments) {
-    const list = comments || [];
-    return `
-      <div class="comments-section" data-comments-for="${itemId}">
-        ${list.map((c) => `
-          <div class="comment-item">
-            <span class="comment-who">${escapeHtml(c.who)}:</span> <span>${escapeHtml(c.text)}</span>
-            <button class="icon-btn comment-remove" data-comment-id="${c.id}" title="Kommentar löschen">✕</button>
-          </div>`).join("")}
-        <form class="comment-form">
-          <select class="comment-who-select">
-            <option>Buggi</option>
-            <option>Timo</option>
-            <option>Bastian</option>
-            <option>Marco</option>
-          </select>
-          <input type="text" class="comment-input" placeholder="Kommentar hinzufügen …" />
-          <button type="submit">➤</button>
-        </form>
-      </div>`;
-  }
+  // Kommentare wurden aus der Oberfläche entfernt (bereits gespeicherte Kommentare bleiben unangetastet in der Datenbank)
+  function commentsHtml() { return ""; }
 
   function wireComments(containerIds, getArray, rerender) {
     containerIds.forEach((cid) => {
@@ -1351,23 +1344,14 @@
 
     events.forEach((ev) => {
       if (ev.createdAt) entries.push({ ts: ev.createdAt, icon: "🎫", html: `<b>${escapeHtml(ev.who)}</b> hat einen Termin eingetragen: <b>${escapeHtml(ev.title)}</b>`, tab: "timeline", targetId: `event-${ev.id}` });
-      (ev.comments || []).forEach((c) => {
-        if (c.createdAt) entries.push({ ts: c.createdAt, icon: "💬", html: `<b>${escapeHtml(c.who)}</b> hat zu „${escapeHtml(ev.title)}“ kommentiert: ${escapeHtml(c.text)}`, tab: "timeline", targetId: `event-${ev.id}` });
-      });
     });
 
     ideas.forEach((idea) => {
       if (idea.createdAt) entries.push({ ts: idea.createdAt, icon: "💡", html: `<b>${escapeHtml(idea.who)}</b> hat eine Idee eingetragen: <b>${escapeHtml(idea.title)}</b>`, tab: "ideas", targetId: `idea-${idea.id}` });
-      (idea.comments || []).forEach((c) => {
-        if (c.createdAt) entries.push({ ts: c.createdAt, icon: "💬", html: `<b>${escapeHtml(c.who)}</b> hat zu „${escapeHtml(idea.title)}“ kommentiert: ${escapeHtml(c.text)}`, tab: "ideas", targetId: `idea-${idea.id}` });
-      });
     });
 
     spots.forEach((sp) => {
       if (sp.createdAt) entries.push({ ts: sp.createdAt, icon: "🍽️", html: `<b>${escapeHtml(sp.who)}</b> hat eine Location eingetragen: <b>${escapeHtml(sp.name)}</b>`, tab: "food", targetId: `spot-${sp.id}` });
-      (sp.comments || []).forEach((c) => {
-        if (c.createdAt) entries.push({ ts: c.createdAt, icon: "💬", html: `<b>${escapeHtml(c.who)}</b> hat zu „${escapeHtml(sp.name)}“ kommentiert: ${escapeHtml(c.text)}`, tab: "food", targetId: `spot-${sp.id}` });
-      });
     });
 
     // Fotos aus demselben Upload-Vorgang (batchId) zusammenfassen, wenn es mehr als 2 sind –
@@ -1613,7 +1597,6 @@
               ${ev.friends ? `<div class="event-note">👥 ${escapeHtml(ev.friends)}</div>` : ""}
               ${filesHtml}
             </div>
-            ${!dim && ev.type === "Konzert" && ev.location ? `<div class="nearby-food hidden" data-nearby-for="${ev.id}"></div>` : ""}
             <div class="event-actions-row">
               ${ev.location ? `<a class="event-tile-btn" href="https://www.hvv.de/de/fahrplaene/fahrplanauskunft" target="_blank" rel="noreferrer">🚍 HVV</a>` : ""}
               ${ev.type === "Konzert" ? `<a class="event-tile-btn" href="https://open.spotify.com/search/${encodeURIComponent(ev.title)}" target="_blank" rel="noreferrer">▶️ Spotify</a>` : ""}
@@ -1623,6 +1606,7 @@
               <button class="event-tile-btn" data-edit-event="${ev.id}">✏️ Bearbeiten</button>
               <button class="event-tile-btn" data-remove-event="${ev.id}">🗑️ Löschen</button>
             </div>
+            ${!dim && ev.type === "Konzert" && ev.location ? `<div class="nearby-food hidden" data-nearby-for="${ev.id}"></div>` : ""}
           </div>
           ${commentsHtml(ev.id, ev.comments)}
         </div>`;
@@ -2938,6 +2922,7 @@
   const CC_CHIPS_COLLAPSED_COUNT = 4;
 
   function renderCCChips() {
+    renderCCArchive();
     const container = document.getElementById("cc-tracked-chips");
     if (!container) return;
     if (trackedArtists.length === 0) {
@@ -2986,19 +2971,57 @@
     }
   }
 
+  // Vergleich ohne Groß/Kleinschreibung, Umlaut Akzente und doppelte Leerzeichen
+  function ccNorm(str) {
+    return (str || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/\s+/g, " ").trim();
+  }
+  function ccFindExisting(val) {
+    const n = ccNorm(val);
+    if (!n) return null;
+    return trackedArtists.find((a) => ccNorm(a) === n) || null;
+  }
+  function ccGoToArtist(artist) {
+    const card = document.getElementById(`cc-card-${ccSafeId(artist)}`);
+    if (!card) return;
+    if (card.dataset.ccHasBody === "1" && !openCC.has(card.dataset.ccKey)) {
+      openCC.add(card.dataset.ccKey);
+      ccApplyOpen(card);
+    }
+    card.scrollIntoView({ behavior: "smooth", block: "center" });
+  }
+  function ccHideDupHint() {
+    const el = document.getElementById("cc-dup-hint");
+    if (el) { el.classList.add("hidden"); el.innerHTML = ""; }
+  }
+  function ccShowDupHint(existing) {
+    const el = document.getElementById("cc-dup-hint");
+    if (!el) return;
+    el.innerHTML = `<span>✅ <b>${escapeHtml(existing)}</b> ist schon im Radar</span><button type="button" class="btn-promote" data-dup-goto="${escapeHtml(existing)}">Anzeigen</button>`;
+    el.classList.remove("hidden");
+  }
+  document.getElementById("cc-dup-hint").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-dup-goto]");
+    if (!b) return;
+    const artist = b.dataset.dupGoto;
+    document.getElementById("cc-artist-input").value = "";
+    ccHideDupHint();
+    ccGoToArtist(artist);
+  });
+  document.getElementById("cc-artist-input").addEventListener("input", (e) => {
+    const existing = ccFindExisting(e.target.value);
+    if (existing) ccShowDupHint(existing); else ccHideDupHint();
+  });
+
   document.getElementById("cc-add-artist-form").addEventListener("submit", (e) => {
     e.preventDefault();
     const input = document.getElementById("cc-artist-input");
     const val = input.value.trim();
     if (!val) return;
-    if (trackedArtists.map((a) => a.toLowerCase()).includes(val.toLowerCase())) {
-      input.value = "";
-      input.placeholder = "Ist schon im Radar";
+    const existing = ccFindExisting(val);
+    if (existing) {
+      ccShowDupHint(existing);
       input.classList.add("cc-input-shake");
-      setTimeout(() => {
-        input.placeholder = "Band (z. B. Fjørt, EQUAL SILENCE)…";
-        input.classList.remove("cc-input-shake");
-      }, 2000);
+      setTimeout(() => input.classList.remove("cc-input-shake"), 800);
       return;
     }
     trackedArtists.push(val);
@@ -3010,6 +3033,71 @@
     renderCCChips();
     renderCCArtistCards();
   });
+
+  // ---- Band Archiv: alle gespeicherten Bands als alphabetische Liste ----
+  function ccArchiveStatus(artist) {
+    const cached = concertCache[artist.toLowerCase()];
+    const data = cached && cached.data;
+    if (!data) return { text: "", hh: false };
+    const today = new Date().toISOString().slice(0, 10);
+    const iso = ccParseGermanDate(data.date);
+    if (data.hasHamburgShow && iso && iso >= today) return { text: "🗓️ " + data.date, hh: true };
+    const nearest = ccParseGermanDate(data.nearestShowDate);
+    if (data.isOnTour && data.nearestShowInfo && !(nearest && nearest < today)) return { text: "🚌 Auf Tour", hh: false };
+    return { text: "", hh: false };
+  }
+
+  function renderCCArchive() {
+    const panel = document.getElementById("cc-archive-panel");
+    if (!panel || panel.classList.contains("hidden")) return;
+    if (trackedArtists.length === 0) {
+      panel.innerHTML = '<div class="cc-archive-title">Noch keine Bands gespeichert.</div>';
+      return;
+    }
+    const sorted = [...trackedArtists].sort((a, b) => a.localeCompare(b, "de", { sensitivity: "base" }));
+    let html = `<div class="cc-archive-title">Alle Bands (${sorted.length})</div>`;
+    let lastLetter = "";
+    sorted.forEach((artist) => {
+      const first = artist.trim().charAt(0).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
+      const letter = /^[A-Z]$/.test(first) ? first : "#";
+      if (letter !== lastLetter) {
+        html += `<div class="cc-archive-letter">${escapeHtml(letter)}</div>`;
+        lastLetter = letter;
+      }
+      const st = ccArchiveStatus(artist);
+      html += `
+        <div class="cc-archive-row">
+          <button type="button" class="cc-archive-name" data-archive-goto="${escapeHtml(artist)}">${escapeHtml(artist)}</button>
+          ${st.text ? `<span class="cc-archive-status${st.hh ? " hh" : ""}">${escapeHtml(st.text)}</span>` : ""}
+          <button type="button" class="cc-inline-remove" data-archive-remove="${escapeHtml(artist)}" title="Band entfernen">✕</button>
+        </div>`;
+    });
+    panel.innerHTML = html;
+  }
+
+  (function wireCCArchive() {
+    const btn = document.getElementById("cc-archive-btn");
+    const panel = document.getElementById("cc-archive-panel");
+    btn.addEventListener("click", () => {
+      const nowHidden = panel.classList.toggle("hidden");
+      btn.textContent = nowHidden ? "📚 Band Archiv" : "📚 Archiv schließen";
+      if (!nowHidden) renderCCArchive();
+    });
+    panel.addEventListener("click", (e) => {
+      const rm = e.target.closest("[data-archive-remove]");
+      if (rm) {
+        const artist = rm.dataset.archiveRemove;
+        if (confirm(`"${artist}" wirklich aus dem Radar entfernen?`)) ccRemoveArtist(artist);
+        return;
+      }
+      const go = e.target.closest("[data-archive-goto]");
+      if (!go) return;
+      const artist = go.dataset.archiveGoto;
+      panel.classList.add("hidden");
+      btn.textContent = "📚 Band Archiv";
+      ccGoToArtist(artist);
+    });
+  })();
 
   function ccSafeId(artist) {
     return artist.toLowerCase().replace(/[^a-z0-9]+/g, "-");

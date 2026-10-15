@@ -2,7 +2,7 @@
 // Nutzt denselben Perplexity Schlüssel wie die Konzert Abfrage (Umgebungsvariable PERPLEXITY_API_KEY).
 // Falls die Variable bei get-concerts anders heißt, hier den Namen anpassen.
 const SHARED_TOKEN = "mbcc"; // dasselbe Passwort wie in der Seite, hält Fremde fern
-const TYPES = ["Restaurant", "Bar", "Craftbeer Bar", "Imbiss", "Burger", "Sonstiges"];
+const TYPES = ["Restaurant", "Bar", "Craftbeer Bar", "Imbiss", "Burger", "Chicken", "Griechisch", "All You Can Eat", "Pizza", "Steak", "Sonstiges"];
 
 const headers = { "Content-Type": "application/json" };
 const reply = (statusCode, body) => ({ statusCode, headers, body: JSON.stringify(body) });
@@ -15,13 +15,14 @@ exports.handler = async (event) => {
   if (payload.token !== SHARED_TOKEN) return reply(401, { error: "Nicht erlaubt" });
   if (query.length < 2) return reply(400, { error: "Suchbegriff fehlt" });
 
-  const prompt = `Finde bis zu 5 passende Gastronomie Locations (Restaurant, Bar, Craftbeer Bar, Imbiss, Burger) in Deutschland zur Suche: "${query}".
+  const prompt = `Finde bis zu 5 passende Gastronomie Locations (Restaurant, Bar, Craftbeer Bar, Imbiss, Burger, Chicken, Griechisch, All You Can Eat, Pizza, Steak) in Deutschland zur Suche: "${query}".
 Wenn in der Suche kein Ort steht, bevorzuge Hamburg.
 Antworte ausschließlich mit JSON, ohne weiteren Text und ohne Codeblock:
 {"results":[{"name":"","type":"","street":"","zip":"","city":"","website":"","note":""}]}
 Regeln:
 - type ist genau einer von: ${TYPES.join(", ")}
 - Craftbeer Bar nur für Bars mit Schwerpunkt auf Craft Beer, Burger für Läden, die vor allem Burger anbieten
+- Pizza für Pizzerien, Steak für Steakhäuser, Chicken für Läden mit Schwerpunkt Hähnchen, Griechisch für griechische Restaurants, All You Can Eat für Läden mit Buffet oder All You Can Eat Konzept
 - street enthält Straße und Hausnummer, Hausnummernbereiche als "7 bis 11"
 - zip ist die fünfstellige PLZ, city der Ort (bei Hamburg "Hamburg", nicht der Stadtteil)
 - website ist nur die offizielle Seite der Location, sonst leer

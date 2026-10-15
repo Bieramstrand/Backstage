@@ -1,5 +1,6 @@
 // Netlify Function "location-hours": sucht die regulären Öffnungszeiten einer Gastronomie Location im Web
 // und prüft in derselben Abfrage, ob die Location noch aktiv ist oder dauerhaft geschlossen hat (z. B. Geschäftsaufgabe).
+// Außerdem schätzt dieselbe Abfrage ein, ob die Location ein Newcomer ist oder gerade im Trend liegt (ohne Mehrkosten).
 // Nutzt denselben Perplexity Schlüssel wie die Konzert Abfrage und die Locations Suche (Umgebungsvariable PERPLEXITY_API_KEY).
 const SHARED_TOKEN = "mbcc"; // dasselbe Passwort wie in der Seite, hält Fremde fern
 const DAYS = ["mo", "di", "mi", "do", "fr", "sa", "so"];
@@ -41,11 +42,13 @@ exports.handler = async (event) => {
     .filter(Boolean)
     .join(", ");
 
-  const prompt = `Prüfe diese Gastronomie Location: ${place}
+  const today = new Date().toISOString().slice(0, 10);
+  const prompt = `Heute ist der ${today}. Prüfe diese Gastronomie Location: ${place}
 Aufgabe 1: Ist die Location noch aktiv oder hat sie dauerhaft geschlossen (Geschäftsaufgabe, endgültige Schließung, Insolvenz mit Aufgabe)?
 Aufgabe 2: Wenn sie aktiv ist, suche die regulären wöchentlichen Öffnungszeiten.
+Aufgabe 3: Wenn sie aktiv ist, schätze ein, ob sie ein Newcomer ist oder gerade im Trend liegt.
 Antworte ausschließlich mit JSON, ohne weiteren Text und ohne Codeblock:
-{"status":"","note":"","hours":{"mo":"","di":"","mi":"","do":"","fr":"","sa":"","so":""}}
+{"status":"","note":"","badge":"","hours":{"mo":"","di":"","mi":"","do":"","fr":"","sa":"","so":""}}
 Regeln für status:
 - "aktiv", "dauerhaft geschlossen" oder "unklar"
 - "dauerhaft geschlossen" nur, wenn eine verlässliche Quelle (offizielle Website, Verzeichnis wie Google Maps, Presse) die endgültige Schließung oder Geschäftsaufgabe ausdrücklich nennt
@@ -58,7 +61,11 @@ Regeln für hours:
 - Schließt die Location nach Mitternacht, schreibe zum Beispiel "18:00-02:00"
 - Wenn die Zeiten für einen Tag nicht sicher belegt sind, bleibt der Wert ein leerer String. Bei dauerhaft geschlossen bleiben alle Werte leer.
 - Nur die regulären Zeiten, keine Feiertage oder Sonderaktionen. Nichts erfinden.
-- Nimm Angaben der offiziellen Website oder eines verlässlichen Verzeichnisses.`;
+- Nimm Angaben der offiziellen Website oder eines verlässlichen Verzeichnisses.
+Regeln für badge:
+- "newcomer" nur, wenn die Location nachweislich innerhalb der letzten 12 Monate eröffnet hat
+- "trend" nur, wenn aktuelle Quellen der letzten Monate (Presse, Stadtmagazine, Berichte) sie ausdrücklich als angesagt, Hotspot oder besonders gefragt beschreiben
+- Sonst ein leerer String. Im Zweifel leer lassen, nichts erfinden.`;
 
   try {
     const r = await fetch("https://api.perplexity.ai/chat/completions", {
@@ -92,7 +99,8 @@ Regeln für hours:
     const hours = {};
     DAYS.forEach((d) => { hours[d] = cleanDay(src[d]); });
     const anyKnown = DAYS.some((d) => hours[d] !== "");
-    return reply(200, { hours: anyKnown ? hours : null, status, note: "" });
+    const badge = parsed.badge === "newcomer" || parsed.badge === "trend" ? parsed.badge : "";
+    return reply(200, { hours: anyKnown ? hours : null, status, note: "", badge });
   } catch (e) {
     console.error(e);
     return reply(500, { error: "Auswertung fehlgeschlagen" });

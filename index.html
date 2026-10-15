@@ -167,12 +167,10 @@
   /* App shell */
   #app { display: none; min-height: 100vh; }
   header {
-    padding: calc(26px + env(safe-area-inset-top, 0px)) 24px 14px;
-    border-bottom: 1px solid rgba(240,239,236,0.12);
+    padding: calc(8px + env(safe-area-inset-top, 0px)) 24px 0;
     overflow-x: hidden;
   }
   .wrap { max-width: 960px; margin: 0 auto; min-width: 0; }
-  header h1 { font-size: clamp(34px, 10vw, 56px); margin: 0; line-height: 1; }
   header p.tagline { margin: 8px 0 0; font-size: 14px; color: var(--muted); }
 
   nav.tabs {
@@ -220,21 +218,16 @@
     color: var(--amber);
   }
 
-  .header-title-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
-  .header-title-row h1 { flex: 1; min-width: 0; }
+  .header-title-row { display: flex; align-items: center; justify-content: flex-start; gap: 10px; }
   #news-top-btn {
     flex-shrink: 0; display: inline-flex; align-items: center; gap: 5px;
-    margin-top: calc((clamp(34px, 10vw, 56px) - 34px) / 2);
     padding: 7px 12px; border-radius: 20px; cursor: pointer;
     font-size: 12.5px; font-weight: 600; font-family: inherit; line-height: 1.2;
-    background: transparent; color: var(--muted);
-    border: 1px solid rgba(240,239,236,0.18);
-    transition: background 0.15s, color 0.15s;
+    background: rgba(232,163,61,0.15); color: var(--amber);
+    border: 1px solid rgba(232,163,61,0.4);
   }
-  #news-top-btn.active { background: rgba(232,163,61,0.15); color: var(--amber); border-color: rgba(232,163,61,0.4); }
-  header h1 { cursor: pointer; }
 
-  main { max-width: 960px; margin: 0 auto; padding: 20px 24px; padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px)); }
+  main { max-width: 960px; margin: 0 auto; padding: 10px 24px; padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px)); }
   .section-header {
     display: flex; align-items: center; justify-content: space-between;
     margin-bottom: 20px; flex-wrap: wrap; gap: 12px;
@@ -251,6 +244,10 @@
     background: var(--amber); color: var(--bg); border: none; font-weight: 600; cursor: pointer;
   }
   .btn-add:hover { transform: scale(1.03); }
+  .btn-add.small { font-size: 12.5px; padding: 6px 11px; flex-shrink: 0; white-space: nowrap; }
+  .section-header.compact { flex-wrap: nowrap; }
+  .section-header.compact .left { min-width: 0; gap: 6px; }
+  .section-header.compact h2 { font-size: 21px; white-space: nowrap; }
 
   form.entry-form {
     margin-bottom: 32px;
@@ -410,7 +407,7 @@
   }
   .spot-links { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
   .nearby-food {
-    margin: -4px 10px 14px; padding: 10px 14px; border-radius: 8px;
+    margin: 14px 0 0; padding: 10px 12px; border-radius: 8px;
     background: rgba(232,163,61,0.07); border: 1px solid rgba(232,163,61,0.22);
   }
   .nearby-food .nearby-title { font-size: 12px; font-weight: 600; color: var(--amber); letter-spacing: 0.04em; margin-bottom: 6px; }
@@ -629,7 +626,6 @@
     <header>
       <div class="wrap">
         <div class="header-title-row">
-        <h1 class="display" id="home-title">Backstage <span class="by-tag">by BierAmStrand</span></h1>
         <button type="button" id="news-top-btn" class="active" data-tab="news">📰 News</button>
         </div>
         <p class="config-note hidden" id="config-warning" style="text-align:left; margin: 8px 0 0;">Hinweis: Firebase ist noch nicht eingerichtet – Eingaben werden aktuell nicht dauerhaft gespeichert.</p>
@@ -741,9 +737,9 @@
 
       <!-- ESSEN -->
       <section id="tab-food" class="tab-panel hidden">
-        <div class="section-header">
+        <div class="section-header compact">
           <div class="left"><span>🍽️</span><h2>Was essen wir?</h2><span class="count-badge" id="spot-count">0</span></div>
-          <button class="btn-add" id="toggle-spot-form">＋ Location</button>
+          <button class="btn-add small" id="toggle-spot-form">＋ Location</button>
         </div>
         <p style="font-size:14px; color:var(--muted); margin:-8px 0 20px;">Restaurants, Bars, Craftbeer Bars, Burger und Imbisse, die wir ausprobieren wollen oder schon gut fanden.</p>
         <div class="cc-add-artist-box">
@@ -1481,10 +1477,6 @@
       window.scrollTo({ top: 0, behavior: "smooth" });
     });
   });
-  document.getElementById("home-title").addEventListener("click", () => {
-    goToTab("news");
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  });
 
   // ---- Form toggles ----
   function wireToggle(btnId, formId) {
@@ -1581,6 +1573,7 @@
               ${ev.friends ? `<div class="event-note">👥 ${escapeHtml(ev.friends)}</div>` : ""}
               ${filesHtml}
             </div>
+            ${!dim && ev.type === "Konzert" && ev.location ? `<div class="nearby-food hidden" data-nearby-for="${ev.id}"></div>` : ""}
             <div class="event-actions-row">
               ${ev.location ? `<a class="event-tile-btn" href="https://www.hvv.de/de/fahrplaene/fahrplanauskunft" target="_blank" rel="noreferrer">🚍 HVV</a>` : ""}
               ${ev.type === "Konzert" ? `<a class="event-tile-btn" href="https://open.spotify.com/search/${encodeURIComponent(ev.title)}" target="_blank" rel="noreferrer">▶️ Spotify</a>` : ""}
@@ -1592,7 +1585,7 @@
             </div>
           </div>
           ${commentsHtml(ev.id, ev.comments)}
-        </div>${!dim && ev.type === "Konzert" && ev.location ? `<div class="nearby-food hidden" data-nearby-for="${ev.id}"></div>` : ""}`;
+        </div>`;
       }).join("");
 
     document.getElementById("upcoming-list").innerHTML = renderList(upcoming, false);

@@ -548,6 +548,10 @@
   .cc-archive-name { flex: 1; min-width: 0; overflow-wrap: anywhere; background: none; border: none; color: var(--paper); text-align: left; font: inherit; padding: 0; cursor: pointer; -webkit-tap-highlight-color: transparent; }
   .cc-archive-status { font-size: 11px; color: var(--muted); white-space: nowrap; flex-shrink: 0; }
   .cc-archive-status.hh { color: var(--amber); font-weight: 600; }
+  .spot-badge { display: inline-block; font-size: 11px; font-weight: 600; line-height: 1.2; padding: 2px 8px; border-radius: 999px; white-space: nowrap; border: 1px solid transparent; }
+  .spot-badge.newcomer { background: rgba(120,200,150,0.15); color: #8fd3a8; border-color: rgba(120,200,150,0.4); }
+  .spot-badge.trend { background: rgba(240,130,80,0.15); color: #f4a67c; border-color: rgba(240,130,80,0.4); }
+  .spot-meta-line { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 4px; }
   .btn-back { display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 11px 18px; margin: 0 0 16px; border-radius: 999px; border: 1px solid var(--amber); background: rgba(232,163,61,0.12); color: var(--amber); font-size: 15px; font-weight: 600; cursor: pointer; -webkit-tap-highlight-color: transparent; }
   .btn-back:active { background: rgba(232,163,61,0.25); }
   .btn-back.bottom { display: flex; width: 100%; margin: 18px 0 0; }
@@ -840,6 +844,14 @@
               <option value="3">★★★</option>
               <option value="4">★★★★</option>
               <option value="5">★★★★★</option>
+            </select>
+          </label>
+          <label>Kennzeichnung
+            <select id="spot-badge">
+              <option value="">Automatisch (Websuche)</option>
+              <option value="newcomer">🆕 Newcomer</option>
+              <option value="trend">🔥 Gerade im Trend</option>
+              <option value="none">Keine</option>
             </select>
           </label>
           <label class="full">Notiz<input type="text" id="spot-note" placeholder="optional, z. B. Empfehlung oder Lieblingsgericht" /></label>
@@ -1176,6 +1188,21 @@
     "Café": "☕", "Biergarten": "🍺",
   };
   function spotEmoji(sp) { return SPOT_MAP_EMOJI[sp && sp.type] || "🍽️"; }
+  // Kennzeichnung einer Location: Newcomer oder gerade im Trend
+  const SPOT_BADGES = { newcomer: { icon: "🆕", label: "Newcomer" }, trend: { icon: "🔥", label: "Im Trend" } };
+  // Von Hand gesetzt gewinnt immer. "Keine" blendet aus, sonst gilt die Einschätzung der Websuche.
+  function spotBadgeKey(sp) {
+    if (!sp) return "";
+    if (sp.badge === "newcomer" || sp.badge === "trend") return sp.badge;
+    if (sp.badge === "none") return "";
+    return sp.autoBadge === "newcomer" || sp.autoBadge === "trend" ? sp.autoBadge : "";
+  }
+  function spotBadgeHtml(sp) {
+    const key = spotBadgeKey(sp);
+    if (!key) return "";
+    const auto = sp.badge !== "newcomer" && sp.badge !== "trend";
+    return `<span class="spot-badge ${key}"${auto ? ' title="Einschätzung der Websuche, kann ungenau sein"' : ""}>${SPOT_BADGES[key].icon} ${SPOT_BADGES[key].label}</span>`;
+  }
   // Fünf Sterne: vergebene in Gelb, übrige blass (auch ohne Bewertung)
   function spotStarsHtml(rating) {
     const r = Math.max(0, Math.min(5, parseInt(rating, 10) || 0));
@@ -2305,6 +2332,9 @@
       const cur = spots.find((x) => x.id === id) || spIn; // die Liste kann zwischendurch neu geladen worden sein
       cur.hoursTried = Date.now();
       if (data && data.hours) { cur.hours = data.hours; cur.hoursAt = Date.now(); }
+      // Einschätzung Newcomer oder Trend kommt in derselben Abfrage mit, ohne Zusatzkosten
+      cur.autoBadge = data && (data.badge === "newcomer" || data.badge === "trend") ? data.badge : "";
+      cur.autoBadgeAt = Date.now();
       if (data && data.status === "closed") {
         cur.closed = { note: String(data.note || "").slice(0, 120), at: Date.now() };
         cur.statusAt = Date.now();
@@ -2338,7 +2368,9 @@
         // Status Prüfung: noch nie geprüft, oder die letzte Prüfung ist über 30 Tage her (bereits als geschlossen markierte werden nicht erneut abgefragt)
         const neverChecked = !sp.statusAt && !sp.closed;
         const statusDue = !sp.closed && !!sp.statusAt && now - sp.statusAt > STATUS_CHECK_DAYS * 86400000;
-        if (((!sp.hours || stale || statusDue) && retryOk) || neverChecked) {
+        // Bestehende Locations bekommen die Einschätzung Newcomer oder Trend einmalig nachgeholt, danach mit der Status Prüfung
+        const needsBadge = !sp.closed && sp.autoBadgeAt === undefined;
+        if (((!sp.hours || stale || statusDue) && retryOk) || neverChecked || needsBadge) {
           hoursSessionTried.add(id); // pro Sitzung höchstens ein Versuch
           if (await fetchSpotHours(sp)) changed = true;
         }
@@ -2391,7 +2423,7 @@
         <div class="spot-head" data-toggle-spot="${sp.id}" role="button" tabindex="0" aria-expanded="${openSpots.has(sp.id)}">
           <div style="min-width:0; flex:1;">
             <div class="title-row"><span>${spotEmoji(sp)}</span><span style="overflow-wrap:anywhere;">${escapeHtml(sp.name)}</span></div>
-            ${sp.rating ? `<div class="spot-stars" title="Bewertung">${spotStarsHtml(sp.rating)}</div>` : ""}
+            ${sp.rating || spotBadgeKey(sp) ? `<div class="spot-meta-line">${sp.rating ? `<span class="spot-stars" title="Bewertung" style="margin-top:0;">${spotStarsHtml(sp.rating)}</span>` : ""}${spotBadgeHtml(sp)}</div>` : ""}
             <div class="spot-open-slot" data-open-slot="${sp.id}">${spotStatusHtml(sp)}</div>
           </div>
           <span class="spot-chevron">${openSpots.has(sp.id) ? "▴" : "▾"}</span>
@@ -2465,6 +2497,7 @@
         document.getElementById("spot-link").value = sp.link || "";
         document.getElementById("spot-note").value = sp.note || "";
         document.getElementById("spot-rating").value = String(sp.rating || 0);
+        document.getElementById("spot-badge").value = ["newcomer", "trend", "none"].includes(sp.badge) ? sp.badge : "";
         document.getElementById("spot-submit-btn").textContent = "Aktualisieren";
         spotImageRemove = false;
         if (/^https:\/\//.test(sp.imageUrl || "")) {
@@ -2513,6 +2546,7 @@
         html += `
         <div class="cc-archive-row">
           <button type="button" class="cc-archive-name" data-spots-goto="${escapeHtml(sp.id)}">${escapeHtml(sp.name)}</button>
+          ${spotBadgeHtml(sp)}
           <span class="cc-archive-status">${sp.closed ? "⛔ " : ""}${spotStarsHtml(sp.rating)}</span>
         </div>`;
       });
@@ -2753,7 +2787,7 @@
       const gmaps = "https://www.google.com/maps/search/?api=1&query=" + encodeURIComponent([sp.name, sp.street, sp.zip, sp.city].filter(Boolean).join(" "));
       const m = L.marker([sp.lat, sp.lng], { icon: spotMapIcon(sp) }).addTo(spotsMapLayer);
       const popImg = /^https:\/\//.test(sp.imageUrl || "") ? `<img src="${escapeHtml(sp.imageUrl)}" alt="" style="display:block; width:200px; max-width:100%; height:110px; object-fit:cover; border-radius:6px; margin-bottom:6px;" />` : "";
-      m.bindPopup(() => { const st = sp.closed ? null : spotOpenStatus(sp.hours); return `${popImg}<b>${escapeHtml(sp.name)}</b><br>${escapeHtml(sp.type || "Restaurant")}${sp.rating ? " " + "★".repeat(sp.rating) : ""}${sp.closed ? "<br>⛔ Dauerhaft geschlossen" : ""}${st ? "<br>" + (st.open ? "🟢 " : "🔴 ") + escapeHtml(st.label) : ""}${addr ? "<br>" + escapeHtml(addr) : ""}<br><a href="${escapeHtml(gmaps)}" target="_blank" rel="noreferrer">In Google Maps öffnen</a>`; }, { minWidth: 200 });
+      m.bindPopup(() => { const st = sp.closed ? null : spotOpenStatus(sp.hours); return `${popImg}<b>${escapeHtml(sp.name)}</b>${spotBadgeKey(sp) ? " " + SPOT_BADGES[spotBadgeKey(sp)].icon + " " + SPOT_BADGES[spotBadgeKey(sp)].label : ""}<br>${escapeHtml(sp.type || "Restaurant")}${sp.rating ? " " + "★".repeat(sp.rating) : ""}${sp.closed ? "<br>⛔ Dauerhaft geschlossen" : ""}${st ? "<br>" + (st.open ? "🟢 " : "🔴 ") + escapeHtml(st.label) : ""}${addr ? "<br>" + escapeHtml(addr) : ""}<br><a href="${escapeHtml(gmaps)}" target="_blank" rel="noreferrer">In Google Maps öffnen</a>`; }, { minWidth: 200 });
       pts.push([sp.lat, sp.lng]);
     });
     spotsMapPts = pts;
@@ -2822,6 +2856,7 @@
     document.getElementById("spot-link").value = r.website;
     document.getElementById("spot-note").value = r.note;
     document.getElementById("spot-rating").value = "0";
+    document.getElementById("spot-badge").value = "";
     resetSpotImageUi();
     document.getElementById("spot-form").classList.remove("hidden");
     document.getElementById("spot-name").scrollIntoView({ behavior: "smooth", block: "center" });
@@ -2994,6 +3029,7 @@
       link: document.getElementById("spot-link").value.trim(),
       note: document.getElementById("spot-note").value.trim(),
       rating: Number(document.getElementById("spot-rating").value) || 0,
+      badge: document.getElementById("spot-badge").value,
     };
     if (!spotData.name) return;
 
@@ -3040,7 +3076,7 @@
         const placeChanged = ["name", "street", "zip", "city"].some((k) => (old[k] || "") !== (spotData[k] || ""));
         spots[idx] = { ...old, ...spotData };
         // Wurde der Ort geändert, gelten die alten Öffnungszeiten nicht mehr
-        if (placeChanged) { delete spots[idx].hours; delete spots[idx].hoursAt; delete spots[idx].hoursTried; delete spots[idx].closed; delete spots[idx].statusAt; }
+        if (placeChanged) { delete spots[idx].hours; delete spots[idx].hoursAt; delete spots[idx].hoursTried; delete spots[idx].closed; delete spots[idx].statusAt; delete spots[idx].autoBadge; delete spots[idx].autoBadgeAt; }
       }
       editingSpotId = null;
       btn.textContent = "Speichern";

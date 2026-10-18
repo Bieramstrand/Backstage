@@ -550,6 +550,7 @@
   .cc-archive-status.hh { color: var(--amber); font-weight: 600; }
   .spot-badge { display: inline-block; font-size: 11px; font-weight: 600; line-height: 1.2; padding: 2px 8px; border-radius: 999px; white-space: nowrap; border: 1px solid transparent; }
   .spot-badge.newcomer { background: rgba(120,200,150,0.15); color: #8fd3a8; border-color: rgba(120,200,150,0.4); }
+  .spot-badge.taplist { background: rgba(232,163,61,0.12); color: var(--amber); border-color: rgba(232,163,61,0.4); }
   .spot-badge.trend { background: rgba(240,130,80,0.15); color: #f4a67c; border-color: rgba(240,130,80,0.4); }
   .spot-meta-line { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 4px; }
   .tap-box { margin-top: 12px; padding: 12px; border-radius: 10px; background: rgba(240,239,236,0.04); border: 1px solid rgba(240,239,236,0.1); }
@@ -2364,6 +2365,10 @@
       <div class="tap-actions">${loadBtn("Neu laden")}${openBtn}</div>
     </div>`;
   }
+  // Kleine Markierung für Locations mit Untappd Link: dort gibt es eine Taplist
+  function spotTapPill(sp) {
+    return safeUntappdUrl(sp && sp.untappd) ? '<span class="spot-badge taplist" title="Taplist von Untappd">🍺 Taplist</span>' : "";
+  }
   function updateTapUi(id) {
     const sp = spots.find((x) => x.id === id);
     if (!sp) return;
@@ -2397,6 +2402,23 @@
     if (!b) return;
     e.stopPropagation();
     loadTaplist(b.dataset.tapLoad);
+  });
+
+  // Klappt eine Karte von unten zu und springt zu ihrer Kopfzeile, damit man nicht weit unten stehen bleibt
+  document.getElementById("spots-list").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-collapse-spot]");
+    if (!b) return;
+    e.stopPropagation();
+    const id = b.dataset.collapseSpot;
+    const card = document.getElementById("spot-" + id);
+    if (!card) return;
+    openSpots.delete(id);
+    card.querySelector(".spot-body").classList.add("hidden");
+    const head = card.querySelector(".spot-head");
+    head.setAttribute("aria-expanded", "false");
+    head.querySelector(".spot-chevron").textContent = "▾";
+    updateSpotsToggleAll();
+    card.scrollIntoView({ behavior: "smooth", block: "center" });
   });
 
   // Sucht die Zeiten einer Location. Gibt true zurück, wenn sich etwas geändert hat und gespeichert werden muss.
@@ -2508,7 +2530,7 @@
         <div class="spot-head" data-toggle-spot="${sp.id}" role="button" tabindex="0" aria-expanded="${openSpots.has(sp.id)}">
           <div style="min-width:0; flex:1;">
             <div class="title-row"><span>${spotEmoji(sp)}</span><span style="overflow-wrap:anywhere;">${escapeHtml(sp.name)}</span></div>
-            ${sp.rating || spotBadgeKey(sp) ? `<div class="spot-meta-line">${sp.rating ? `<span class="spot-stars" title="Bewertung" style="margin-top:0;">${spotStarsHtml(sp.rating)}</span>` : ""}${spotBadgeHtml(sp)}</div>` : ""}
+            ${sp.rating || spotBadgeKey(sp) || safeUntappdUrl(sp.untappd) ? `<div class="spot-meta-line">${sp.rating ? `<span class="spot-stars" title="Bewertung" style="margin-top:0;">${spotStarsHtml(sp.rating)}</span>` : ""}${spotBadgeHtml(sp)}${spotTapPill(sp)}</div>` : ""}
             <div class="spot-open-slot" data-open-slot="${sp.id}">${spotStatusHtml(sp)}</div>
           </div>
           <span class="spot-chevron">${openSpots.has(sp.id) ? "▴" : "▾"}</span>
@@ -2535,6 +2557,7 @@
         <div class="spot-links">
           <a class="event-tile-btn" href="${escapeHtml(mapsUrl)}" target="_blank" rel="noreferrer">📍 Karte</a>
           ${safeLink ? `<a class="event-tile-btn" href="${escapeHtml(safeLink)}" target="_blank" rel="noreferrer">🔗 Website</a>` : ""}
+          <button type="button" class="event-tile-btn" data-collapse-spot="${sp.id}">▴ Zuklappen</button>
         </div>
         ${commentsHtml(sp.id, sp.comments)}
         </div>
@@ -2634,7 +2657,7 @@
         html += `
         <div class="cc-archive-row">
           <button type="button" class="cc-archive-name" data-spots-goto="${escapeHtml(sp.id)}">${escapeHtml(sp.name)}</button>
-          ${spotBadgeHtml(sp)}
+          ${spotBadgeHtml(sp)}${spotTapPill(sp)}
           <span class="cc-archive-status">${sp.closed ? "⛔ " : ""}${spotStarsHtml(sp.rating)}</span>
         </div>`;
       });

@@ -552,6 +552,18 @@
   .spot-badge.newcomer { background: rgba(120,200,150,0.15); color: #8fd3a8; border-color: rgba(120,200,150,0.4); }
   .spot-badge.trend { background: rgba(240,130,80,0.15); color: #f4a67c; border-color: rgba(240,130,80,0.4); }
   .spot-meta-line { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 4px; }
+  .tap-box { margin-top: 12px; padding: 12px; border-radius: 10px; background: rgba(240,239,236,0.04); border: 1px solid rgba(240,239,236,0.1); }
+  .tap-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; margin-bottom: 4px; }
+  .tap-title { font-size: 13px; font-weight: 700; color: var(--amber); letter-spacing: 0.04em; margin: 0; }
+  .tap-stand { font-size: 11px; color: var(--muted); }
+  .tap-item { padding: 8px 0; border-top: 1px solid rgba(240,239,236,0.07); }
+  .tap-item:first-of-type { border-top: none; }
+  .tap-line { display: flex; justify-content: space-between; gap: 10px; align-items: baseline; }
+  .tap-name { font-weight: 600; font-size: 14px; overflow-wrap: anywhere; }
+  .tap-rating { font-size: 12px; color: var(--amber); white-space: nowrap; flex-shrink: 0; }
+  .tap-meta { font-size: 12px; color: var(--muted); margin-top: 2px; overflow-wrap: anywhere; }
+  .tap-prices { font-size: 12.5px; margin-top: 3px; }
+  .tap-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
   .btn-back { display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 11px 18px; margin: 0 0 16px; border-radius: 999px; border: 1px solid var(--amber); background: rgba(232,163,61,0.12); color: var(--amber); font-size: 15px; font-weight: 600; cursor: pointer; -webkit-tap-highlight-color: transparent; }
   .btn-back:active { background: rgba(232,163,61,0.25); }
   .btn-back.bottom { display: flex; width: 100%; margin: 18px 0 0; }
@@ -836,6 +848,7 @@
             </select>
           </label>
           <label>Link (optional)<input type="url" id="spot-link" placeholder="https://..." /></label>
+          <label>Untappd Link für die Taplist (optional)<input type="url" id="spot-untappd" placeholder="https://untp.beer/..." /></label>
           <label>Bewertung
             <select id="spot-rating">
               <option value="0">Noch keine</option>
@@ -2314,6 +2327,78 @@
     document.querySelectorAll("[data-hours-slot]").forEach((el) => { if (el.dataset.hoursSlot === sp.id) el.innerHTML = spotHoursBlockHtml(sp); });
   }
 
+  // ---- Taplist von Untappd ----
+  const TAP_ENDPOINT = "/.netlify/functions/taplist";
+  const tapCache = {};          // pro Sitzung zwischengespeichert, die Taplist ändert sich laufend
+  const tapLoading = new Set();
+  function safeUntappdUrl(u) {
+    try {
+      const x = new URL(String(u || "").trim());
+      const h = x.hostname;
+      return x.protocol === "https:" && (h === "untappd.com" || h.endsWith(".untappd.com") || h === "untp.beer") ? x.toString() : "";
+    } catch { return ""; }
+  }
+  function tapHtml(sp) {
+    const url = safeUntappdUrl(sp.untappd);
+    if (!url) return "";
+    const openBtn = `<a class="event-tile-btn" href="${escapeHtml(url)}" target="_blank" rel="noreferrer">🍺 Auf Untappd öffnen</a>`;
+    const loadBtn = (label) => `<button type="button" class="event-tile-btn" data-tap-load="${escapeHtml(sp.id)}">${label}</button>`;
+    if (tapLoading.has(sp.id)) return `<div class="tap-box"><p class="tap-title">🍺 TAPLIST</p><p class="note" style="margin:6px 0 0;">Lädt …</p></div>`;
+    const c = tapCache[sp.id];
+    if (!c) return `<div class="tap-box"><div class="tap-actions" style="margin-top:0;">${loadBtn("🍺 Taplist laden")}${openBtn}</div></div>`;
+    if (c.error) return `<div class="tap-box"><p class="tap-title">🍺 TAPLIST</p><p class="note" style="margin:6px 0 0;">${escapeHtml(c.error)}</p><div class="tap-actions">${loadBtn("Nochmal versuchen")}${openBtn}</div></div>`;
+    if (!c.taps.length) return `<div class="tap-box"><p class="tap-title">🍺 TAPLIST</p><p class="note" style="margin:6px 0 0;">Keine Taplist gefunden. Auf Untappd steht sie vielleicht in einem anderen Menü.</p><div class="tap-actions">${loadBtn("Nochmal versuchen")}${openBtn}</div></div>`;
+    const stand = new Date(c.at).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
+    const items = c.taps.map((t) => {
+      const meta = [t.style, t.abv ? t.abv + " %" : "", t.brewery, ...(t.tags || [])].filter(Boolean).join(" · ");
+      const prices = (t.sizes || []).map((z) => `${escapeHtml(z.size)} ${escapeHtml(z.price)}`).join(" · ");
+      return `<div class="tap-item">
+        <div class="tap-line"><span class="tap-name">${escapeHtml(t.n)}. ${escapeHtml(t.name)}</span>${t.rating ? `<span class="tap-rating">★ ${escapeHtml(t.rating)}</span>` : ""}</div>
+        ${meta ? `<div class="tap-meta">${escapeHtml(meta)}</div>` : ""}
+        ${prices ? `<div class="tap-prices">${prices}</div>` : ""}
+      </div>`;
+    }).join("");
+    return `<div class="tap-box">
+      <div class="tap-head"><p class="tap-title">🍺 TAPLIST · ${c.taps.length}</p><span class="tap-stand">Stand ${escapeHtml(stand)} Uhr</span></div>
+      ${items}
+      <div class="tap-actions">${loadBtn("Neu laden")}${openBtn}</div>
+    </div>`;
+  }
+  function updateTapUi(id) {
+    const sp = spots.find((x) => x.id === id);
+    if (!sp) return;
+    document.querySelectorAll("[data-tap-slot]").forEach((el) => { if (el.dataset.tapSlot === id) el.innerHTML = tapHtml(sp); });
+  }
+  async function loadTaplist(id) {
+    const sp = spots.find((x) => x.id === id);
+    const url = sp && safeUntappdUrl(sp.untappd);
+    if (!url || tapLoading.has(id)) return;
+    tapLoading.add(id);
+    updateTapUi(id);
+    try {
+      const res = await fetch(TAP_ENDPOINT, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token: PASSWORD, url }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "HTTP " + res.status);
+      tapCache[id] = { taps: Array.isArray(data.taps) ? data.taps : [], at: Date.now() };
+    } catch (err) {
+      console.error("Taplist laden fehlgeschlagen", err);
+      tapCache[id] = { error: "Die Taplist konnte gerade nicht geladen werden. " + (err && err.message ? "(" + err.message + ")" : ""), at: Date.now() };
+    } finally {
+      tapLoading.delete(id);
+      updateTapUi(id);
+    }
+  }
+  document.getElementById("spots-list").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-tap-load]");
+    if (!b) return;
+    e.stopPropagation();
+    loadTaplist(b.dataset.tapLoad);
+  });
+
   // Sucht die Zeiten einer Location. Gibt true zurück, wenn sich etwas geändert hat und gespeichert werden muss.
   async function fetchSpotHours(spIn) {
     const id = spIn.id;
@@ -2446,6 +2531,7 @@
           </div>
         </div>
         <div class="spot-hours" data-hours-slot="${sp.id}">${spotHoursBlockHtml(sp)}</div>
+        <div data-tap-slot="${sp.id}">${tapHtml(sp)}</div>
         <div class="spot-links">
           <a class="event-tile-btn" href="${escapeHtml(mapsUrl)}" target="_blank" rel="noreferrer">📍 Karte</a>
           ${safeLink ? `<a class="event-tile-btn" href="${escapeHtml(safeLink)}" target="_blank" rel="noreferrer">🔗 Website</a>` : ""}
@@ -2462,6 +2548,7 @@
         const body = h.closest(".spot-card").querySelector(".spot-body");
         const nowHidden = body.classList.toggle("hidden");
         if (nowHidden) openSpots.delete(id); else openSpots.add(id);
+        if (!nowHidden) { const spx = spots.find((x) => x.id === id); if (spx && safeUntappdUrl(spx.untappd) && !tapCache[id]) loadTaplist(id); }
         h.setAttribute("aria-expanded", String(!nowHidden));
         h.querySelector(".spot-chevron").textContent = nowHidden ? "▾" : "▴";
         updateSpotsToggleAll();
@@ -2495,6 +2582,7 @@
         document.getElementById("spot-city").value = sp.city || "";
         document.getElementById("spot-who").value = sp.who;
         document.getElementById("spot-link").value = sp.link || "";
+        document.getElementById("spot-untappd").value = sp.untappd || "";
         document.getElementById("spot-note").value = sp.note || "";
         document.getElementById("spot-rating").value = String(sp.rating || 0);
         document.getElementById("spot-badge").value = ["newcomer", "trend", "none"].includes(sp.badge) ? sp.badge : "";
@@ -2854,6 +2942,7 @@
     document.getElementById("spot-zip").value = r.zip;
     document.getElementById("spot-city").value = r.city;
     document.getElementById("spot-link").value = r.website;
+    document.getElementById("spot-untappd").value = "";
     document.getElementById("spot-note").value = r.note;
     document.getElementById("spot-rating").value = "0";
     document.getElementById("spot-badge").value = "";
@@ -3019,6 +3108,11 @@
   document.getElementById("spot-form").addEventListener("submit", async (e) => {
     e.preventDefault();
     const form = e.target;
+    const untappdRaw = document.getElementById("spot-untappd").value.trim();
+    if (untappdRaw && !safeUntappdUrl(untappdRaw)) {
+      alert("Bitte einen Untappd Link eingeben (untappd.com oder untp.beer).");
+      return;
+    }
     const spotData = {
       name: document.getElementById("spot-name").value.trim(),
       type: document.getElementById("spot-type").value,
@@ -3027,6 +3121,7 @@
       city: document.getElementById("spot-city").value.trim(),
       who: document.getElementById("spot-who").value,
       link: document.getElementById("spot-link").value.trim(),
+      untappd: safeUntappdUrl(untappdRaw),
       note: document.getElementById("spot-note").value.trim(),
       rating: Number(document.getElementById("spot-rating").value) || 0,
       badge: document.getElementById("spot-badge").value,

@@ -536,12 +536,19 @@
   .cc-archive-status.hh { color: var(--amber); font-weight: 600; }
   .spot-badge { display: inline-block; font-size: 11px; font-weight: 600; line-height: 1.2; padding: 2px 8px; border-radius: 999px; white-space: nowrap; border: 1px solid transparent; }
   .spot-badge.newcomer { background: rgba(120,200,150,0.15); color: #8fd3a8; border-color: rgba(120,200,150,0.4); }
+  .tips-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .tips-chips button { padding: 8px 12px; border-radius: 999px; border: 1px solid rgba(240,239,236,0.18); background: transparent; color: var(--paper); font-size: 13px; font-weight: 600; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+  .tips-chips button.active { border-color: var(--amber); color: var(--amber); background: rgba(232,163,61,0.12); }
+  .tips-chips button:disabled { opacity: 0.5; }
+  .tips-link { background: none; border: none; padding: 0; color: var(--amber); text-decoration: underline; font-size: inherit; cursor: pointer; }
   .seg { display: flex; background: var(--bg-soft); border: 1px solid rgba(240,239,236,0.12); border-radius: 12px; padding: 3px; margin: 0 0 14px; }
   .seg button { flex: 1; min-width: 0; padding: 10px 6px; border: none; border-radius: 9px; background: transparent; color: var(--muted); font-size: 14px; font-weight: 600; cursor: pointer; white-space: nowrap; -webkit-tap-highlight-color: transparent; }
   .seg button.active { background: rgba(232,163,61,0.15); color: var(--amber); }
   .spot-badge.taplist { background: rgba(232,163,61,0.12); color: var(--amber); border-color: rgba(232,163,61,0.4); }
   .spot-badge.trend { background: rgba(240,130,80,0.15); color: #f4a67c; border-color: rgba(240,130,80,0.4); }
-  .spot-meta-line { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 4px 0 0 28px; } /* gleiche Einrückung wie der Öffnungsstatus, damit alles unter dem Namen bündig steht */
+  /* Markierungen, Bewertung und Öffnungsstatus stehen untereinander, alle mit derselben Einrückung wie der Name */
+  .spot-stars-line { margin: 5px 0 0 28px; font-size: 13px; letter-spacing: 1px; line-height: 1.2; }
+  .spot-pills { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 6px 0 0 28px; }
   .tap-box { margin-top: 12px; padding: 12px; border-radius: 10px; background: rgba(240,239,236,0.04); border: 1px solid rgba(240,239,236,0.1); }
   .tap-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; margin-bottom: 4px; }
   .tap-title { font-size: 13px; font-weight: 700; color: var(--amber); letter-spacing: 0.04em; margin: 0; }
@@ -867,6 +874,7 @@
         <div style="margin:0 0 14px; display:flex; flex-wrap:wrap; gap:8px;">
           <button type="button" class="btn-promote" id="toggle-spots-map" style="font-size:13px; padding:8px 12px;">🗺️ Karte</button>
           <button type="button" class="btn-promote" id="spots-archive-btn" style="font-size:13px; padding:8px 12px;">📚 Archiv</button>
+          <button type="button" class="btn-promote" id="spots-tips-btn" style="font-size:13px; padding:8px 12px;">💡 Tipps</button>
         </div>
         <div class="seg" id="spots-filter" role="group" aria-label="Locations filtern">
           <button type="button" data-spot-filter="all" class="active">Alle</button>
@@ -882,6 +890,28 @@
           <div class="ic">🍻</div>
           <p>Noch keine Locations eingetragen. Wo wollt ihr als Nächstes einkehren?</p>
         </div>
+        </div>
+
+        <!-- Tipps nach Thema: eigene Seite mit Empfehlungen aus Blogs, Creator Seiten und Magazinen -->
+        <div id="spots-tips-view" class="hidden">
+          <button type="button" class="btn-back" id="spots-tips-back">← Zurück zu den Locations</button>
+          <div class="section-header">
+            <div class="left"><span>💡</span><h2>Tipps nach Thema</h2></div>
+          </div>
+          <p style="font-size:14px; color:var(--muted); margin:-8px 0 16px;">Empfehlungen für Hamburg aus Blogs, Creator Seiten und Magazinen. Tippe ein Thema an, Treffer lassen sich direkt übernehmen.</p>
+          <div class="tips-chips" id="spot-tips">
+            <button type="button" data-tip-topic="Burger">🍔 Burger</button>
+            <button type="button" data-tip-topic="Steak">🥩 Steak</button>
+            <button type="button" data-tip-topic="Pizza">🍕 Pizza</button>
+            <button type="button" data-tip-topic="Chicken">🍗 Chicken</button>
+            <button type="button" data-tip-topic="Griechisch">🥙 Griechisch</button>
+            <button type="button" data-tip-topic="Craftbeer">🍺 Craftbeer</button>
+            <button type="button" data-tip-topic="Bars">🍸 Bars</button>
+          </div>
+          <p id="tips-status" class="hidden" style="font-size:13px; color:var(--muted); margin:14px 0 0;"></p>
+          <p id="tips-meta" class="hidden" style="font-size:12px; color:var(--muted); margin:6px 0 0;"></p>
+          <div id="tips-results"></div>
+          <button type="button" class="btn-back bottom" id="spots-tips-back-bottom">← Zurück zu den Locations</button>
         </div>
 
         <!-- Locations Archiv: eigene Seite mit allen Locations, sortiert nach Art -->
@@ -1361,19 +1391,24 @@
   }
 
   function renderWeeklyDigestEntries() {
-    // Wöchentlicher Rückblick über alles, was in der Woche neu dazukam (Bands, Plano-Termine, Ideen).
+    // Wöchentlicher Rückblick über alles, was in der Woche neu dazukam (Bands, Plano Termine, Einkehr Locations, Ideen, Fotos und Videos).
     // Wird client-seitig berechnet, erscheint ab dem Montag nach Wochenende, und nur wenn in der
     // Woche tatsächlich etwas passiert ist.
     const weekMap = {};
+    function bucket(ts) {
+      const weekKey = ccWeekMondayKey(ts);
+      if (!weekMap[weekKey]) weekMap[weekKey] = { bands: [], events: [], ideas: [], spots: [], photos: [] };
+      return weekMap[weekKey];
+    }
     function addTo(category, ts, label) {
       if (!ts || !label) return;
-      const weekKey = ccWeekMondayKey(ts);
-      if (!weekMap[weekKey]) weekMap[weekKey] = { bands: [], events: [], ideas: [] };
-      weekMap[weekKey][category].push(label);
+      bucket(ts)[category].push(label);
     }
     (bandAddLog || []).forEach((entry) => addTo("bands", entry.addedAt, entry.artist));
     events.forEach((ev) => addTo("events", ev.createdAt, ev.title));
     ideas.forEach((idea) => addTo("ideas", idea.createdAt, idea.title));
+    spots.forEach((sp) => addTo("spots", sp.createdAt, sp.name));
+    photos.forEach((ph) => { if (ph.createdAt) bucket(ph.createdAt).photos.push(ph); });
 
     const result = [];
     Object.entries(weekMap).forEach(([weekKey, groups]) => {
@@ -1384,16 +1419,34 @@
       const uniqueBands = [...new Set(groups.bands)];
       const uniqueEvents = [...new Set(groups.events)];
       const uniqueIdeas = [...new Set(groups.ideas)];
-      if (uniqueBands.length === 0 && uniqueEvents.length === 0 && uniqueIdeas.length === 0) return; // nichts passiert -> keine News
+      const uniqueSpots = [...new Set(groups.spots)];
+      const videoCount = groups.photos.filter((p) => p.type === "video").length;
+      const photoCount = groups.photos.length - videoCount;
+      if (uniqueBands.length === 0 && uniqueEvents.length === 0 && uniqueIdeas.length === 0 && uniqueSpots.length === 0 && groups.photos.length === 0) return; // nichts passiert -> keine News
+
+      // Fotos und Videos als Zahl, dazu die Alben in denen sie gelandet sind
+      let mediaText = "";
+      if (groups.photos.length) {
+        const parts = [];
+        if (photoCount > 0) parts.push(`${photoCount} Foto${photoCount === 1 ? "" : "s"}`);
+        if (videoCount > 0) parts.push(`${videoCount} Video${videoCount === 1 ? "" : "s"}`);
+        const albumNames = [...new Set(groups.photos.map((ph) => { const al = albums.find((x) => x.id === ph.albumId); return al ? al.name : ""; }).filter(Boolean))];
+        const shownAlbums = albumNames.slice(0, 4).join(", ") + (albumNames.length > 4 ? " und weitere" : "");
+        mediaText = parts.join(" und ") + (albumNames.length ? ` (${shownAlbums})` : "");
+      }
 
       const lineParts = [];
       if (uniqueBands.length) lineParts.push(`🎸 <b>Konzerte:</b> ${uniqueBands.map(escapeHtml).join(", ")}`);
       if (uniqueEvents.length) lineParts.push(`🎫 <b>Plano:</b> ${uniqueEvents.map(escapeHtml).join(", ")}`);
+      if (uniqueSpots.length) lineParts.push(`🍻 <b>Einkehr:</b> ${uniqueSpots.map(escapeHtml).join(", ")}`);
       if (uniqueIdeas.length) lineParts.push(`💡 <b>Ideen:</b> ${uniqueIdeas.map(escapeHtml).join(", ")}`);
+      if (mediaText) lineParts.push(`📷 <b>Fotos:</b> ${escapeHtml(mediaText)}`);
       const plainParts = [];
       if (uniqueBands.length) plainParts.push(`🎸 Konzerte: ${uniqueBands.join(", ")}`);
       if (uniqueEvents.length) plainParts.push(`🎫 Plano: ${uniqueEvents.join(", ")}`);
+      if (uniqueSpots.length) plainParts.push(`🍻 Einkehr: ${uniqueSpots.join(", ")}`);
       if (uniqueIdeas.length) plainParts.push(`💡 Ideen: ${uniqueIdeas.join(", ")}`);
+      if (mediaText) plainParts.push(`📷 Fotos: ${mediaText}`);
       const weekLabel = new Date(mondayStart).toLocaleDateString("de-DE", { day: "2-digit", month: "short" });
 
       result.push({
@@ -1408,35 +1461,86 @@
     return result;
   }
 
+  // Gleiche Meldungen vom selben Tag (und vom selben Urheber) werden zu einer Kachel zusammengefasst.
+  function mergeNewsByDay(list) {
+    const out = [];
+    const groups = new Map();
+    list.forEach((e) => {
+      if (!e.kind) { out.push(e); return; }
+      const key = `${new Date(e.ts).toDateString()}|${e.kind}|${e.who || ""}`;
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(e);
+    });
+    groups.forEach((items) => {
+      if (items.length === 1) { out.push(items[0]); return; }
+      items.sort((a, b) => b.ts - a.ts);
+      const first = items[0];
+      const n = items.length;
+      const who = first.who ? `<b>${escapeHtml(first.who)}</b> ` : "";
+      const lines = items.map((e) => e.itemHtml).join("<br>");
+      const m = { ts: first.ts, icon: first.icon, tab: first.tab, targetId: first.targetId, albumId: first.albumId, isBandAlert: first.isBandAlert, kind: first.kind };
+      if (first.kind === "band") {
+        m.html = `Neue Bands im Konzert-Radar:<br>${lines}`;
+      } else if (first.kind === "event") {
+        m.html = `${who}hat ${n} Termine eingetragen:<br>${lines}`;
+      } else if (first.kind === "idea") {
+        m.html = `${who}hat ${n} Ideen eingetragen:<br>${lines}`;
+      } else if (first.kind === "spot") {
+        m.icon = "🍻";
+        m.html = `${who}hat ${n} Locations eingetragen:<br>${lines}`;
+      } else if (first.kind === "album") {
+        m.html = `${who}hat ${n} Alben angelegt:<br>${lines}`;
+      } else if (first.kind === "photo") {
+        const pc = items.reduce((a, e) => a + (e.pc || 0), 0);
+        const vc = items.reduce((a, e) => a + (e.vc || 0), 0);
+        const parts = [];
+        if (pc > 0) parts.push(`${pc} Foto${pc === 1 ? "" : "s"}`);
+        if (vc > 0) parts.push(`${vc} Video${vc === 1 ? "" : "s"}`);
+        const names = [...new Set(items.map((e) => e.albumName).filter(Boolean))];
+        const albumPart = names.length === 1 ? ` im Album „${escapeHtml(names[0])}“` : names.length > 1 ? ` in den Alben ${names.map((x) => `„${escapeHtml(x)}“`).join(", ")}` : "";
+        m.icon = vc > 0 && pc === 0 ? "🎬" : "📷";
+        m.html = `${who}hat ${parts.join(" und ")} hinzugefügt${albumPart}`;
+        if (names.length > 1) m.albumId = undefined; // mehrere Alben: nur in den Foto Tab springen
+      }
+      out.push(m);
+    });
+    return out;
+  }
+
   function renderNews() {
     const entries = [...renderWeeklyDigestEntries()];
+    // Jeder Eintrag trägt kind (Art der Meldung), who (Urheber) und itemHtml (Zeile für zusammengefasste Kacheln),
+    // damit gleiche Meldungen vom selben Tag später zu einer Kachel werden.
 
     (bandAddLog || []).forEach((entry) => {
       if (!entry.addedAt) return;
       const spotifyUrl = `https://open.spotify.com/search/${encodeURIComponent(entry.artist)}`;
+      const item = `<b>${escapeHtml(entry.artist)}</b> · <a href="${spotifyUrl}" target="_blank" rel="noreferrer" style="color:var(--amber); text-decoration:underline;">▶️ Spotify</a>`;
       entries.push({
         ts: entry.addedAt,
         icon: "🎸",
-        html: `Neue Band im Konzert-Radar: <b>${escapeHtml(entry.artist)}</b> · <a href="${spotifyUrl}" target="_blank" rel="noreferrer" style="color:var(--amber); text-decoration:underline;">▶️ Spotify</a>`,
+        html: `Neue Band im Konzert-Radar: ${item}`,
         tab: "concerts",
         isBandAlert: true,
+        kind: "band",
+        itemHtml: item,
       });
     });
 
     events.forEach((ev) => {
-      if (ev.createdAt) entries.push({ ts: ev.createdAt, icon: "🎫", html: `<b>${escapeHtml(ev.who)}</b> hat einen Termin eingetragen: <b>${escapeHtml(ev.title)}</b>`, tab: "timeline", targetId: `event-${ev.id}` });
+      if (ev.createdAt) entries.push({ ts: ev.createdAt, icon: "🎫", html: `<b>${escapeHtml(ev.who)}</b> hat einen Termin eingetragen: <b>${escapeHtml(ev.title)}</b>`, tab: "timeline", targetId: `event-${ev.id}`, kind: "event", who: ev.who, itemHtml: `<b>${escapeHtml(ev.title)}</b>` });
     });
 
     ideas.forEach((idea) => {
-      if (idea.createdAt) entries.push({ ts: idea.createdAt, icon: "💡", html: `<b>${escapeHtml(idea.who)}</b> hat eine Idee eingetragen: <b>${escapeHtml(idea.title)}</b>`, tab: "ideas", targetId: `idea-${idea.id}` });
+      if (idea.createdAt) entries.push({ ts: idea.createdAt, icon: "💡", html: `<b>${escapeHtml(idea.who)}</b> hat eine Idee eingetragen: <b>${escapeHtml(idea.title)}</b>`, tab: "ideas", targetId: `idea-${idea.id}`, kind: "idea", who: idea.who, itemHtml: `<b>${escapeHtml(idea.title)}</b>` });
     });
 
     spots.forEach((sp) => {
-      if (sp.createdAt) entries.push({ ts: sp.createdAt, icon: spotEmoji(sp), html: `<b>${escapeHtml(sp.who)}</b> hat eine Location eingetragen: <b>${escapeHtml(sp.name)}</b>`, tab: "food", targetId: `spot-${sp.id}` });
+      if (sp.createdAt) entries.push({ ts: sp.createdAt, icon: spotEmoji(sp), html: `<b>${escapeHtml(sp.who)}</b> hat eine Location eingetragen: <b>${escapeHtml(sp.name)}</b>`, tab: "food", targetId: `spot-${sp.id}`, kind: "spot", who: sp.who, itemHtml: `${escapeHtml(spotEmoji(sp))} <b>${escapeHtml(sp.name)}</b>` });
     });
 
-    // Fotos aus demselben Upload-Vorgang (batchId) zusammenfassen, wenn es mehr als 2 sind –
-    // Fotos ohne batchId (z. B. ältere Einträge) oder Einzel-/Zweier-Batches bleiben einzeln.
+    // Fotos aus demselben Upload Vorgang (batchId) zusammenfassen, wenn es mehr als 2 sind.
+    // Fotos ohne batchId (z. B. ältere Einträge) oder Einzel oder Zweier Batches bleiben zunächst einzeln.
     const photoGroups = {};
     const singlePhotos = [];
     photos.forEach((ph) => {
@@ -1447,36 +1551,42 @@
         singlePhotos.push(ph);
       }
     });
+    const albumNameOf = (id) => { const al = albums.find((a) => a.id === id); return al ? al.name : ""; };
+    const photoLabel = (pc, vc) => {
+      const parts = [];
+      if (pc > 0) parts.push(`${pc} Foto${pc === 1 ? "" : "s"}`);
+      if (vc > 0) parts.push(`${vc} Video${vc === 1 ? "" : "s"}`);
+      return parts.join(" und ");
+    };
     Object.values(photoGroups).forEach((group) => {
       if (group.length > 2) {
         const first = group[0];
-        const album = albums.find((a) => a.id === first.albumId);
-        const albumPart = album ? ` im Album „${escapeHtml(album.name)}“` : "";
-        const videoCount = group.filter((p) => p.type === "video").length;
-        const photoCount = group.length - videoCount;
-        const parts = [];
-        if (photoCount > 0) parts.push(`${photoCount} Foto${photoCount === 1 ? "" : "s"}`);
-        if (videoCount > 0) parts.push(`${videoCount} Video${videoCount === 1 ? "" : "s"}`);
-        const countLabel = parts.join(" und ");
-        const icon = videoCount > 0 && photoCount === 0 ? "🎬" : "📷";
+        const albumName = albumNameOf(first.albumId);
+        const albumPart = albumName ? ` im Album „${escapeHtml(albumName)}“` : "";
+        const vc = group.filter((p) => p.type === "video").length;
+        const pc = group.length - vc;
+        const icon = vc > 0 && pc === 0 ? "🎬" : "📷";
         const latestTs = Math.max(...group.map((p) => p.createdAt));
-        entries.push({ ts: latestTs, icon, html: `<b>${escapeHtml(first.who)}</b> hat ${countLabel} hinzugefügt${albumPart}`, tab: "photos", targetId: `photo-${first.id}`, albumId: first.albumId });
+        entries.push({ ts: latestTs, icon, html: `<b>${escapeHtml(first.who)}</b> hat ${photoLabel(pc, vc)} hinzugefügt${albumPart}`, tab: "photos", targetId: `photo-${first.id}`, albumId: first.albumId, kind: "photo", who: first.who, pc, vc, albumName });
       } else {
         singlePhotos.push(...group);
       }
     });
     singlePhotos.forEach((ph) => {
-      const album = albums.find((a) => a.id === ph.albumId);
-      const albumPart = album ? ` im Album „${escapeHtml(album.name)}“` : "";
-      entries.push({ ts: ph.createdAt, icon: ph.type === "video" ? "🎬" : "📷", html: `<b>${escapeHtml(ph.who)}</b> hat ${ph.type === "video" ? "ein Video" : "ein Foto"} hinzugefügt${albumPart}`, tab: "photos", targetId: `photo-${ph.id}`, albumId: ph.albumId });
+      const albumName = albumNameOf(ph.albumId);
+      const albumPart = albumName ? ` im Album „${escapeHtml(albumName)}“` : "";
+      const isVideo = ph.type === "video";
+      entries.push({ ts: ph.createdAt, icon: isVideo ? "🎬" : "📷", html: `<b>${escapeHtml(ph.who)}</b> hat ${isVideo ? "ein Video" : "ein Foto"} hinzugefügt${albumPart}`, tab: "photos", targetId: `photo-${ph.id}`, albumId: ph.albumId, kind: "photo", who: ph.who, pc: isVideo ? 0 : 1, vc: isVideo ? 1 : 0, albumName });
     });
 
     albums.forEach((al) => {
-      if (al.createdAt) entries.push({ ts: al.createdAt, icon: "🖼️", html: `<b>${escapeHtml(al.who)}</b> hat ein Album angelegt: <b>${escapeHtml(al.name)}</b>`, tab: "photos", targetId: `album-${al.id}` });
+      if (al.createdAt) entries.push({ ts: al.createdAt, icon: "🖼️", html: `<b>${escapeHtml(al.who)}</b> hat ein Album angelegt: <b>${escapeHtml(al.name)}</b>`, tab: "photos", targetId: `album-${al.id}`, kind: "album", who: al.who, itemHtml: `<b>${escapeHtml(al.name)}</b>` });
     });
 
-    entries.sort((a, b) => b.ts - a.ts);
-    const all = entries.slice(0, 60);
+    const merged = mergeNewsByDay(entries);
+
+    merged.sort((a, b) => b.ts - a.ts);
+    const all = merged.slice(0, 60);
     const recent = newsExpanded ? all : all.slice(0, NEWS_COLLAPSED_COUNT);
 
     document.getElementById("news-count").textContent = all.length;
@@ -2323,7 +2433,35 @@
 
   // ---- Taplist von Untappd ----
   const TAP_ENDPOINT = "/.netlify/functions/taplist";
-  const tapCache = {};          // pro Sitzung zwischengespeichert, die Taplist ändert sich laufend
+  // Die Taplist wird nur beim allerersten Mal automatisch geladen. Danach bleibt der gespeicherte Stand
+  // stehen (auch nach dem Schließen der App) und wird nur über "Neu laden" aktualisiert.
+  const TAP_STORE_KEY = "backstage_taplist_v1";
+  const tapCache = (() => {
+    try {
+      const raw = JSON.parse(localStorage.getItem(TAP_STORE_KEY) || "{}");
+      return raw && typeof raw === "object" ? raw : {};
+    } catch { return {}; }
+  })();
+  function saveTapCache() {
+    try {
+      const keep = {};
+      Object.entries(tapCache).forEach(([id, c]) => { if (c && Array.isArray(c.taps) && c.taps.length > 0 && c.url) keep[id] = c; }); // Fehlermeldungen und leere Ergebnisse werden nicht gespeichert, damit es beim nächsten Mal erneut versucht wird
+      localStorage.setItem(TAP_STORE_KEY, JSON.stringify(keep));
+    } catch { /* Speicher voll oder gesperrt: dann gilt der Stand nur bis zum Schließen */ }
+  }
+  // Gespeicherter Stand gilt nur, solange der Untappd Link der Location derselbe ist
+  function tapEntry(sp) {
+    const c = tapCache[sp && sp.id];
+    if (!c) return null;
+    if (!c.error && c.url && c.url !== safeUntappdUrl(sp.untappd)) return null;
+    return c;
+  }
+  function tapStandLabel(at) {
+    const d = new Date(at), now = new Date();
+    const time = d.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
+    const label = d.toDateString() === now.toDateString() ? `Stand ${time} Uhr` : `Stand ${d.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" })}, ${time} Uhr`;
+    return Date.now() - at > 2 * 86400000 ? `${label} · schon älter` : label;
+  }
   const tapLoading = new Set();
   function safeUntappdUrl(u) {
     try {
@@ -2338,11 +2476,11 @@
     const openBtn = `<a class="event-tile-btn" href="${escapeHtml(url)}" target="_blank" rel="noreferrer">🍺 Auf Untappd öffnen</a>`;
     const loadBtn = (label) => `<button type="button" class="event-tile-btn" data-tap-load="${escapeHtml(sp.id)}">${label}</button>`;
     if (tapLoading.has(sp.id)) return `<div class="tap-box"><p class="tap-title">🍺 TAPLIST</p><p class="note" style="margin:6px 0 0;">Lädt …</p></div>`;
-    const c = tapCache[sp.id];
+    const c = tapEntry(sp);
     if (!c) return `<div class="tap-box"><div class="tap-actions" style="margin-top:0;">${loadBtn("🍺 Taplist laden")}${openBtn}</div></div>`;
     if (c.error) return `<div class="tap-box"><p class="tap-title">🍺 TAPLIST</p><p class="note" style="margin:6px 0 0;">${escapeHtml(c.error)}</p><div class="tap-actions">${loadBtn("Nochmal versuchen")}${openBtn}</div></div>`;
     if (!c.taps.length) return `<div class="tap-box"><p class="tap-title">🍺 TAPLIST</p><p class="note" style="margin:6px 0 0;">Keine Taplist gefunden. Auf Untappd steht sie vielleicht in einem anderen Menü.</p><div class="tap-actions">${loadBtn("Nochmal versuchen")}${openBtn}</div></div>`;
-    const stand = new Date(c.at).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
+    const stand = tapStandLabel(c.at);
     const items = c.taps.map((t) => {
       const meta = [t.style, t.abv ? t.abv + " %" : "", t.brewery, ...(t.tags || [])].filter(Boolean).join(" · ");
       const prices = (t.sizes || []).map((z) => `${escapeHtml(z.size)} ${escapeHtml(z.price)}`).join(" · ");
@@ -2353,7 +2491,7 @@
       </div>`;
     }).join("");
     return `<div class="tap-box">
-      <div class="tap-head"><p class="tap-title">🍺 TAPLIST · ${c.taps.length}</p><span class="tap-stand">Stand ${escapeHtml(stand)} Uhr</span></div>
+      <div class="tap-head"><p class="tap-title">🍺 TAPLIST · ${c.taps.length}</p><span class="tap-stand">${escapeHtml(stand)}</span></div>
       ${items}
       <div class="tap-actions">${loadBtn("Neu laden")}${openBtn}</div>
     </div>`;
@@ -2381,7 +2519,8 @@
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || "HTTP " + res.status);
-      tapCache[id] = { taps: Array.isArray(data.taps) ? data.taps : [], at: Date.now() };
+      tapCache[id] = { taps: Array.isArray(data.taps) ? data.taps : [], at: Date.now(), url };
+      saveTapCache();
     } catch (err) {
       console.error("Taplist laden fehlgeschlagen", err);
       tapCache[id] = { error: "Die Taplist konnte gerade nicht geladen werden. " + (err && err.message ? "(" + err.message + ")" : ""), at: Date.now() };
@@ -2544,7 +2683,8 @@
         <div class="spot-head" data-toggle-spot="${sp.id}" role="button" tabindex="0" aria-expanded="${openSpots.has(sp.id)}">
           <div style="min-width:0; flex:1;">
             <div class="title-row"><span>${spotEmoji(sp)}</span><span style="overflow-wrap:anywhere;">${escapeHtml(sp.name)}</span></div>
-            ${sp.rating || spotBadgeKey(sp) || safeUntappdUrl(sp.untappd) ? `<div class="spot-meta-line">${sp.rating ? `<span class="spot-stars" title="Bewertung" style="margin-top:0;">${spotStarsHtml(sp.rating)}</span>` : ""}${spotBadgeHtml(sp)}${spotTapPill(sp)}</div>` : ""}
+            ${spotBadgeKey(sp) || safeUntappdUrl(sp.untappd) ? `<div class="spot-pills">${spotBadgeHtml(sp)}${spotTapPill(sp)}</div>` : ""}
+            ${sp.rating ? `<div class="spot-stars-line" title="Bewertung">${spotStarsHtml(sp.rating)}</div>` : ""}
             <div class="spot-open-slot" data-open-slot="${sp.id}">${spotStatusHtml(sp)}</div>
           </div>
           <span class="spot-chevron">${openSpots.has(sp.id) ? "▴" : "▾"}</span>
@@ -2584,7 +2724,7 @@
         const body = h.closest(".spot-card").querySelector(".spot-body");
         const nowHidden = body.classList.toggle("hidden");
         if (nowHidden) openSpots.delete(id); else openSpots.add(id);
-        if (!nowHidden) { const spx = spots.find((x) => x.id === id); if (spx && safeUntappdUrl(spx.untappd) && !tapCache[id]) loadTaplist(id); }
+        if (!nowHidden) { const spx = spots.find((x) => x.id === id); if (spx && safeUntappdUrl(spx.untappd) && !tapEntry(spx)) loadTaplist(id); }
         h.setAttribute("aria-expanded", String(!nowHidden));
         h.querySelector(".spot-chevron").textContent = nowHidden ? "▾" : "▴";
       };
@@ -2671,10 +2811,7 @@
     panel.innerHTML = html;
   }
   function closeSpotsArchive() {
-    const view = document.getElementById("spots-archive-view");
-    if (!view) return;
-    view.classList.add("hidden");
-    document.getElementById("spots-main-view").classList.remove("hidden");
+    showSpotsMain();
   }
   document.getElementById("spots-archive-btn").addEventListener("click", () => {
     document.getElementById("spots-main-view").classList.add("hidden");
@@ -2933,9 +3070,9 @@
     el.classList.toggle("hidden", !msg);
   }
 
-  function renderSpotSearchResults() {
-    const box = document.getElementById("spot-search-results");
-    box.innerHTML = spotSearchResults.map((r, i) => {
+  // Karten für Treffer der Suche und der Tipps. attr bestimmt, welcher Übernehmen Knopf gilt.
+  function spotResultsHtml(list, attr) {
+    return list.map((r, i) => {
       const addr = [r.street, [r.zip, r.city].filter(Boolean).join(" ")].filter(Boolean).join(", ");
       const known = spots.some((sp) => sp.name.trim().toLowerCase() === r.name.trim().toLowerCase());
       return `
@@ -2945,21 +3082,28 @@
             <div style="font-weight:600; overflow-wrap:anywhere;">${escapeHtml(r.name)} <span class="spot-tag">${escapeHtml(r.type)}</span></div>
             ${addr ? `<div style="font-size:13px; color:var(--muted); margin-top:3px;">📍 ${escapeHtml(addr)}</div>` : ""}
             ${r.note ? `<div style="font-size:13px; color:var(--muted); margin-top:3px;">${escapeHtml(r.note)}</div>` : ""}
+            ${r.source ? `<div style="font-size:13px; color:var(--amber); margin-top:3px;">💡 Empfohlen von ${escapeHtml(r.source)}</div>` : ""}
           </div>
           ${known
             ? `<span class="spot-tag" style="flex-shrink:0;">Schon in der Liste</span>`
-            : `<button type="button" class="btn-promote" style="flex-shrink:0;" data-use-result="${i}">＋ Übernehmen</button>`}
+            : `<button type="button" class="btn-promote" style="flex-shrink:0;" ${attr}="${i}">＋ Übernehmen</button>`}
         </div>
       </div>`;
     }).join("");
+  }
+
+  function renderSpotSearchResults() {
+    const box = document.getElementById("spot-search-results");
+    box.innerHTML = spotResultsHtml(spotSearchResults, "data-use-result");
     box.querySelectorAll("[data-use-result]").forEach((b) => {
       b.addEventListener("click", () => useSpotSearchResult(Number(b.dataset.useResult)));
     });
   }
 
-  function useSpotSearchResult(i) {
-    const r = spotSearchResults[i];
+  function useSpotSearchResult(i, list) {
+    const r = (list || spotSearchResults)[i];
     if (!r) return;
+    showSpotsMain(); // kommt der Treffer von der Tipps Seite, zuerst zur normalen Ansicht zurück
     editingSpotId = null;
     document.getElementById("spot-submit-btn").textContent = "Speichern";
     document.getElementById("spot-name").value = r.name;
@@ -2969,7 +3113,7 @@
     document.getElementById("spot-city").value = r.city;
     document.getElementById("spot-link").value = r.website;
     document.getElementById("spot-untappd").value = "";
-    document.getElementById("spot-note").value = r.note;
+    document.getElementById("spot-note").value = [r.note, r.source ? "Tipp von " + r.source : ""].filter(Boolean).join(" · ");
     document.getElementById("spot-rating").value = "0";
     document.getElementById("spot-badge").value = "";
     resetSpotImageUi();
@@ -3011,6 +3155,96 @@
     } finally {
       btn.disabled = false;
     }
+  });
+
+  // ---- Tipps nach Thema: Empfehlungen aus Blogs, Creator Seiten und Magazinen, auf einer eigenen Seite ----
+  // Ergebnisse bleiben 3 Tage auf dem Gerät gespeichert, damit nicht bei jedem Tippen eine neue Abfrage läuft.
+  const TIPS_STORE_KEY = "backstage_tips_v1";
+  const TIPS_MAX_AGE = 3 * 86400000;
+  const tipsStore = (() => {
+    try { const r = JSON.parse(localStorage.getItem(TIPS_STORE_KEY) || "{}"); return r && typeof r === "object" ? r : {}; } catch { return {}; }
+  })();
+  let tipsResults = [];
+  function saveTips() { try { localStorage.setItem(TIPS_STORE_KEY, JSON.stringify(tipsStore)); } catch { /* Speicher voll: dann nur bis zum Schließen */ } }
+  function setTipsStatus(msg, isErr) {
+    const el = document.getElementById("tips-status");
+    el.textContent = msg;
+    el.style.color = isErr ? "var(--err)" : "var(--muted)";
+    el.classList.toggle("hidden", !msg);
+  }
+  function renderTipsResults() {
+    const box = document.getElementById("tips-results");
+    box.innerHTML = spotResultsHtml(tipsResults, "data-use-tip");
+    box.querySelectorAll("[data-use-tip]").forEach((b) => {
+      b.addEventListener("click", () => useSpotSearchResult(Number(b.dataset.useTip), tipsResults));
+    });
+  }
+  function showTips(topic, entry) {
+    tipsResults = entry.results;
+    renderTipsResults();
+    setTipsStatus(`Tipps zu ${topic} in Hamburg aus der Websuche (Blogs, Creator, Magazine). Bitte vor dem Besuch kurz prüfen.`, false);
+    const d = new Date(entry.at).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" });
+    const src = entry.sources && entry.sources.length ? ` · Quellen: ${entry.sources.map(escapeHtml).join(", ")}` : "";
+    const meta = document.getElementById("tips-meta");
+    meta.innerHTML = `Stand ${d}${src} · <button type="button" class="tips-link" data-tips-refresh="${escapeHtml(topic)}">Neu suchen</button>`;
+    meta.classList.remove("hidden");
+  }
+  async function loadTips(topic, force) {
+    document.querySelectorAll("#spot-tips button").forEach((b) => b.classList.toggle("active", b.dataset.tipTopic === topic));
+    const cached = tipsStore[topic];
+    if (!force && cached && Array.isArray(cached.results) && Date.now() - cached.at < TIPS_MAX_AGE) { showTips(topic, cached); return; }
+    const chips = document.querySelectorAll("#spot-tips button");
+    chips.forEach((b) => { b.disabled = true; });
+    tipsResults = [];
+    renderTipsResults();
+    document.getElementById("tips-meta").classList.add("hidden");
+    setTipsStatus(`Tipps zu ${topic} werden gesucht …`, false);
+    try {
+      const resp = await fetch(SEARCH_ENDPOINT, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ topic, token: PASSWORD }),
+      });
+      if (!resp.ok) throw new Error("Server antwortet mit " + resp.status);
+      const data = await resp.json();
+      const results = Array.isArray(data.results) ? data.results : [];
+      if (results.length === 0) {
+        setTipsStatus(`Zu ${topic} habe ich gerade keine Tipps gefunden.`, true);
+      } else {
+        tipsStore[topic] = { results, sources: Array.isArray(data.sources) ? data.sources : [], at: Date.now() };
+        saveTips();
+        showTips(topic, tipsStore[topic]);
+      }
+    } catch (err) {
+      console.error("Tipps laden fehlgeschlagen", err);
+      setTipsStatus("Die Tipps konnten gerade nicht geladen werden. Bitte noch einmal versuchen.", true);
+    } finally {
+      chips.forEach((b) => { b.disabled = false; });
+    }
+  }
+  document.getElementById("spot-tips").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-tip-topic]");
+    if (b) loadTips(b.dataset.tipTopic, false);
+  });
+  document.getElementById("tips-meta").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-tips-refresh]");
+    if (b) loadTips(b.dataset.tipsRefresh, true);
+  });
+
+  // Ansichten der Einkehr Seite: normale Liste, Archiv und Tipps (immer nur eine sichtbar)
+  function showSpotsMain() {
+    document.getElementById("spots-archive-view").classList.add("hidden");
+    document.getElementById("spots-tips-view").classList.add("hidden");
+    document.getElementById("spots-main-view").classList.remove("hidden");
+  }
+  document.getElementById("spots-tips-btn").addEventListener("click", () => {
+    document.getElementById("spots-main-view").classList.add("hidden");
+    document.getElementById("spots-archive-view").classList.add("hidden");
+    document.getElementById("spots-tips-view").classList.remove("hidden");
+    window.scrollTo(0, 0);
+  });
+  ["spots-tips-back", "spots-tips-back-bottom"].forEach((id) => {
+    document.getElementById(id).addEventListener("click", () => { showSpotsMain(); window.scrollTo(0, 0); });
   });
 
   // Adresse in einem Rutsch einfügen, z. B. "Bartelsstraße 7 bis 11, 20357 Hamburg" wird auf die Felder verteilt

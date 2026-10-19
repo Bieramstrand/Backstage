@@ -4,7 +4,7 @@
 // Zwei Arten von Anfragen: "query" sucht eine bestimmte Location, "topic" holt Tipps zu einem Thema (Burger, Steak ...)
 // aus Blogs, Creator Seiten und Magazinen.
 const SHARED_TOKEN = "mbcc"; // dasselbe Passwort wie in der Seite, hält Fremde fern
-const TOPICS = ["Burger", "Steak", "Pizza", "Chicken", "Griechisch", "Craftbeer", "Bars"];
+const TOPICS = ["Burger", "Steak", "Schnitzel", "Pizza", "Chicken", "Tacos", "Griechisch", "Craftbeer", "Bars"];
 const TYPES = ["Restaurant", "Bar", "Craftbeer Bar", "Imbiss", "Burger", "Chicken", "Griechisch", "All You Can Eat", "Pizza", "Steak", "Sonstiges"];
 
 const headers = { "Content-Type": "application/json" };
@@ -33,7 +33,8 @@ Regeln:
 - Nur real existierende, aktuell geöffnete Locations, nichts erfinden. Unbekannte Felder bleiben leere Strings.
 ${extra}`;
   const tipsPrompt = `Nenne bis zu 6 Gastronomie Locations in Hamburg zum Thema "${topic}", die Foodblogger, Food Creator (YouTube, TikTok, Instagram, Blogs), Stadtmagazine oder lokale Medien aktuell empfehlen.
-${rules(`- source nennt, wer die Location empfiehlt, zum Beispiel den Namen des Creators, Blogs oder Magazins, höchstens 80 Zeichen
+Suche dafür ausdrücklich auch auf genussguide-hamburg.com (Genuss Guide Hamburg), hamburg.mitvergnuegen.com (Mit Vergnügen Hamburg) und geheimtipphamburg.de, Kategorie Essen und Trinken (Geheimtipp Hamburg), zum Beispiel mit site: Suchen, und nutze deren Top Listen, Tests und Beiträge zusätzlich zu anderen Quellen.
+${rules(`- source nennt, wer die Location empfiehlt, zum Beispiel den Namen des Creators, Blogs oder Magazins (bei den genannten Seiten "Genuss Guide Hamburg", "Mit Vergnügen Hamburg" bzw. "Geheimtipp Hamburg"; ist der Beitrag ausdrücklich als Anzeige oder Kooperation gekennzeichnet, hänge " (Anzeige)" an), höchstens 80 Zeichen
 - Nenne nur Empfehlungen, die du in deinen Suchergebnissen tatsächlich findest. Kannst du keine konkrete Empfehlung belegen, bleibt source ein leerer String.
 - Bevorzuge Empfehlungen der letzten zwei Jahre.`)}`;
   const searchPrompt = `Finde bis zu 5 passende Gastronomie Locations (Restaurant, Bar, Craftbeer Bar, Imbiss, Burger, Chicken, Griechisch, All You Can Eat, Pizza, Steak) in Deutschland zur Suche: "${query}".

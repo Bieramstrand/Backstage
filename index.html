@@ -3086,6 +3086,10 @@
             ${addr ? `<div style="font-size:13px; color:var(--muted); margin-top:3px;">📍 ${escapeHtml(addr)}</div>` : ""}
             ${r.note ? `<div style="font-size:13px; color:var(--muted); margin-top:3px;">${escapeHtml(r.note)}</div>` : ""}
             ${r.source ? `<div style="font-size:13px; color:var(--amber); margin-top:3px;">💡 Empfohlen von ${escapeHtml(r.source)}</div>` : ""}
+            ${r.check === "open" ? `<div style="font-size:13px; color:#7fd6a0; margin-top:3px;">✅ Laut Websuche in Betrieb</div>`
+              : r.check === "unknown" ? `<div style="font-size:13px; color:var(--amber); margin-top:3px;">⚠️ Betrieb nicht bestätigt, bitte vor dem Besuch prüfen</div>`
+              : r.check === "checking" ? `<div style="font-size:13px; color:var(--muted); margin-top:3px;">⏳ Öffnungsstatus wird geprüft …</div>`
+              : r.check === "unchecked" ? `<div style="font-size:13px; color:var(--muted); margin-top:3px;">⚠️ Öffnungsstatus nicht geprüft</div>` : ""}
           </div>
           ${known
             ? `<span class="spot-tag" style="flex-shrink:0;">Schon in der Liste</span>`
@@ -3168,7 +3172,13 @@
     try { const r = JSON.parse(localStorage.getItem(TIPS_STORE_KEY) || "{}"); return r && typeof r === "object" ? r : {}; } catch { return {}; }
   })();
   let tipsResults = [];
-  function saveTips() { try { localStorage.setItem(TIPS_STORE_KEY, JSON.stringify(tipsStore)); } catch { /* Speicher voll: dann nur bis zum Schließen */ } }
+  function saveTips() {
+    try {
+      const keep = {};
+      Object.entries(tipsStore).forEach(([k, e]) => { if (e && e.verified !== false) keep[k] = e; }); // Stände mitten in der Prüfung werden nicht gespeichert
+      localStorage.setItem(TIPS_STORE_KEY, JSON.stringify(keep));
+    } catch { /* Speicher voll: dann nur bis zum Schließen */ }
+  }
   function setTipsStatus(msg, isErr) {
     const el = document.getElementById("tips-status");
     el.textContent = msg;
@@ -3182,18 +3192,51 @@
       b.addEventListener("click", () => useSpotSearchResult(Number(b.dataset.useTip), tipsResults));
     });
   }
+  let tipsActiveTopic = "";
   function showTips(topic, entry) {
+    tipsActiveTopic = topic;
     tipsResults = entry.results;
     renderTipsResults();
-    setTipsStatus(`Tipps zu ${topic} in Hamburg aus der Websuche (Blogs, Creator, Magazine). Bitte vor dem Besuch kurz prüfen.`, false);
+    const dropped = entry.dropped && entry.dropped.length
+      ? ` ${entry.dropped.length} Treffer aussortiert, weil sie laut Websuche geschlossen sind: ${entry.dropped.join(", ")}.` : "";
+    setTipsStatus(`Tipps zu ${topic} in Hamburg aus der Websuche (Blogs, Creator, Magazine). Bitte vor dem Besuch kurz prüfen.${dropped}`, false);
     const d = new Date(entry.at).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" });
     const src = entry.sources && entry.sources.length ? ` · Quellen: ${entry.sources.map(escapeHtml).join(", ")}` : "";
     const meta = document.getElementById("tips-meta");
     meta.innerHTML = `Stand ${d}${src} · <button type="button" class="tips-link" data-tips-refresh="${escapeHtml(topic)}">Neu suchen</button>`;
     meta.classList.remove("hidden");
   }
+  // Zweite, getrennte Anfrage: prüft, ob die Tipps noch in Betrieb sind. Geschlossene fliegen raus.
+  async function verifyTips(topic, entry) {
+    try {
+      const resp = await fetch(SEARCH_ENDPOINT, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ verify: entry.results.map((r) => ({ name: r.name, street: r.street, zip: r.zip, city: r.city })), token: PASSWORD }),
+      });
+      if (!resp.ok) throw new Error("Server antwortet mit " + resp.status);
+      const data = await resp.json();
+      const checks = Array.isArray(data.checks) ? data.checks : [];
+      const kept = [];
+      const dropped = [];
+      entry.results.forEach((r, i) => {
+        const c = checks[i];
+        if (c && c.status === "closed") { dropped.push(r.name); return; }
+        kept.push({ ...r, check: c && c.status === "open" ? "open" : "unknown" });
+      });
+      entry.results = kept.slice(0, 6);
+      entry.dropped = dropped;
+    } catch (err) {
+      console.error("Öffnungs Check fehlgeschlagen", err);
+      entry.results = entry.results.slice(0, 6).map((r) => ({ ...r, check: "unchecked" }));
+    }
+    entry.verified = true;
+    saveTips(); // erst nach der Prüfung speichern, damit nie ein halber Stand liegen bleibt
+    if (tipsActiveTopic === topic && tipsStore[topic] === entry) showTips(topic, entry);
+  }
   async function loadTips(topic, force) {
     document.querySelectorAll("#spot-tips button").forEach((b) => b.classList.toggle("active", b.dataset.tipTopic === topic));
+    tipsActiveTopic = topic;
     const cached = tipsStore[topic];
     if (!force && cached && Array.isArray(cached.results) && Date.now() - cached.at < TIPS_MAX_AGE) { showTips(topic, cached); return; }
     const chips = document.querySelectorAll("#spot-tips button");
@@ -3202,6 +3245,7 @@
     renderTipsResults();
     document.getElementById("tips-meta").classList.add("hidden");
     setTipsStatus(`Tipps zu ${topic} werden gesucht …`, false);
+    let entry = null;
     try {
       const resp = await fetch(SEARCH_ENDPOINT, {
         method: "POST",
@@ -3214,9 +3258,9 @@
       if (results.length === 0) {
         setTipsStatus(`Zu ${topic} habe ich gerade keine Tipps gefunden.`, true);
       } else {
-        tipsStore[topic] = { results, sources: Array.isArray(data.sources) ? data.sources : [], at: Date.now() };
-        saveTips();
-        showTips(topic, tipsStore[topic]);
+        entry = { results: results.map((r) => ({ ...r, check: "checking" })), sources: Array.isArray(data.sources) ? data.sources : [], at: Date.now(), dropped: [], verified: false };
+        tipsStore[topic] = entry; // erst nach der Prüfung auch auf dem Gerät speichern
+        showTips(topic, entry);
       }
     } catch (err) {
       console.error("Tipps laden fehlgeschlagen", err);
@@ -3224,6 +3268,7 @@
     } finally {
       chips.forEach((b) => { b.disabled = false; });
     }
+    if (entry) await verifyTips(topic, entry);
   }
   document.getElementById("spot-tips").addEventListener("click", (e) => {
     const b = e.target.closest("[data-tip-topic]");

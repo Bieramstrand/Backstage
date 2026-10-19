@@ -536,6 +536,7 @@
   .cc-archive-status.hh { color: var(--amber); font-weight: 600; }
   .spot-badge { display: inline-block; font-size: 11px; font-weight: 600; line-height: 1.2; padding: 2px 8px; border-radius: 999px; white-space: nowrap; border: 1px solid transparent; }
   .spot-badge.newcomer { background: rgba(120,200,150,0.15); color: #8fd3a8; border-color: rgba(120,200,150,0.4); }
+  .beta-tag { display: inline-block; margin-left: 6px; padding: 1px 6px; border: 1px solid rgba(232,163,61,0.55); border-radius: 999px; color: var(--amber); font-size: 9px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; line-height: 1.4; vertical-align: middle; }
   .tips-chips { display: flex; flex-wrap: wrap; gap: 6px; }
   .tips-chips button { padding: 8px 12px; border-radius: 999px; border: 1px solid rgba(240,239,236,0.18); background: transparent; color: var(--paper); font-size: 13px; font-weight: 600; cursor: pointer; -webkit-tap-highlight-color: transparent; }
   .tips-chips button.active { border-color: var(--amber); color: var(--amber); background: rgba(232,163,61,0.12); }
@@ -874,7 +875,7 @@
         <div style="margin:0 0 14px; display:flex; flex-wrap:wrap; gap:8px;">
           <button type="button" class="btn-promote" id="toggle-spots-map" style="font-size:13px; padding:8px 12px;">🗺️ Karte</button>
           <button type="button" class="btn-promote" id="spots-archive-btn" style="font-size:13px; padding:8px 12px;">📚 Archiv</button>
-          <button type="button" class="btn-promote" id="spots-tips-btn" style="font-size:13px; padding:8px 12px;">💡 Tipps</button>
+          <button type="button" class="btn-promote" id="spots-tips-btn" style="font-size:13px; padding:8px 12px;">💡 Tipps<span class="beta-tag">Beta</span></button>
         </div>
         <div class="seg" id="spots-filter" role="group" aria-label="Locations filtern">
           <button type="button" data-spot-filter="all" class="active">Alle</button>
@@ -896,7 +897,7 @@
         <div id="spots-tips-view" class="hidden">
           <button type="button" class="btn-back" id="spots-tips-back">← Zurück zu den Locations</button>
           <div class="section-header">
-            <div class="left"><span>💡</span><h2>Tipps nach Thema</h2></div>
+            <div class="left"><span>💡</span><h2>Tipps nach Thema</h2><span class="beta-tag">Beta</span></div>
           </div>
           <p style="font-size:14px; color:var(--muted); margin:-8px 0 16px;">Empfehlungen für Hamburg aus Blogs, Creator Seiten und Magazinen. Tippe ein Thema an, Treffer lassen sich direkt übernehmen.</p>
           <div class="tips-chips" id="spot-tips">

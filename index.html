@@ -3073,11 +3073,42 @@
     el.classList.toggle("hidden", !msg);
   }
 
+  // Erkennt, ob eine Location schon in Backstage steht. Tolerant bei Groß und Kleinschreibung, Umlauten, Satzzeichen,
+  // Zusätzen wie Hamburg oder Restaurant und längeren Namen (Superbad gegen Superbad Burger und Fries).
+  const PLACE_NOISE = new Set(["hamburg", "restaurant", "cafe", "gmbh", "und", "the", "das", "die", "der", "bar"]);
+  function placeTokens(v) {
+    return String(v || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/&/g, " und ").replace(/[^a-z0-9]+/g, " ").trim().split(" ").filter((t) => t && !PLACE_NOISE.has(t));
+  }
+  function placeKey(v) { return placeTokens(v).join(""); }
+  function streetKey(street, zip) {
+    const st = String(street || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/ß/g, "ss").replace(/strasse|str\./g, "str").replace(/[^a-z0-9]+/g, "");
+    const z = String(zip || "").replace(/\D/g, "");
+    return /\d/.test(st) && z.length === 5 ? st + z : "";
+  }
+  function isKnownSpot(r) {
+    const n = placeKey(r.name);
+    const rAddr = streetKey(r.street, r.zip);
+    const rTokens = placeTokens(r.name).filter((t) => t.length >= 4);
+    return spots.some((sp) => {
+      const m = placeKey(sp.name);
+      if (n && m && (n === m || (Math.min(n.length, m.length) >= 5 && (n.includes(m) || m.includes(n))))) return true;
+      // Kurzform: ein einzelnes Wort (mindestens 4 Buchstaben), das der erste Namensteil des längeren Namens ist (FSKR gegen FSKR Füchse sind keine Rudeltiere)
+      const mt = placeTokens(sp.name), nt = placeTokens(r.name);
+      if (m && n && m !== n) {
+        const [shortT, longT] = mt.length <= nt.length ? [mt, nt] : [nt, mt];
+        if (shortT.length === 1 && shortT[0].length >= 4 && longT.length > 1 && longT[0] === shortT[0]) return true;
+      }
+      // gleiche Adresse zählt nur, wenn die Namen auch ein längeres Wort teilen (in Markthallen sitzen mehrere Läden unter einer Adresse)
+      const a = streetKey(sp.street, sp.zip);
+      return !!rAddr && !!a && rAddr === a && placeTokens(sp.name).some((t) => t.length >= 4 && rTokens.includes(t));
+    });
+  }
+
   // Karten für Treffer der Suche und der Tipps. attr bestimmt, welcher Übernehmen Knopf gilt.
   function spotResultsHtml(list, attr) {
     return list.map((r, i) => {
       const addr = [r.street, [r.zip, r.city].filter(Boolean).join(" ")].filter(Boolean).join(", ");
-      const known = spots.some((sp) => sp.name.trim().toLowerCase() === r.name.trim().toLowerCase());
+      const known = isKnownSpot(r);
       return `
       <div style="padding:12px 0; border-top:1px solid rgba(240,239,236,0.1); margin-top:${i === 0 ? "12px" : "0"};">
         <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px;">
@@ -3172,6 +3203,7 @@
     try { const r = JSON.parse(localStorage.getItem(TIPS_STORE_KEY) || "{}"); return r && typeof r === "object" ? r : {}; } catch { return {}; }
   })();
   let tipsResults = [];
+  let tipsShown = []; // was auf der Seite wirklich angezeigt wird (ohne bereits übernommene, höchstens 6)
   function saveTips() {
     try {
       const keep = {};
@@ -3187,9 +3219,10 @@
   }
   function renderTipsResults() {
     const box = document.getElementById("tips-results");
-    box.innerHTML = spotResultsHtml(tipsResults, "data-use-tip");
+    tipsShown = tipsResults.filter((r) => !isKnownSpot(r)).slice(0, 6);
+    box.innerHTML = spotResultsHtml(tipsShown, "data-use-tip");
     box.querySelectorAll("[data-use-tip]").forEach((b) => {
-      b.addEventListener("click", () => useSpotSearchResult(Number(b.dataset.useTip), tipsResults));
+      b.addEventListener("click", () => useSpotSearchResult(Number(b.dataset.useTip), tipsShown));
     });
   }
   let tipsActiveTopic = "";
@@ -3199,7 +3232,11 @@
     renderTipsResults();
     const dropped = entry.dropped && entry.dropped.length
       ? ` ${entry.dropped.length} Treffer aussortiert, weil sie laut Websuche geschlossen sind: ${entry.dropped.join(", ")}.` : "";
-    setTipsStatus(`Tipps zu ${topic} in Hamburg aus der Websuche (Blogs, Creator, Magazine). Bitte vor dem Besuch kurz prüfen.${dropped}`, false);
+    const have = entry.results.filter((r) => isKnownSpot(r)).map((r) => r.name);
+    const haveText = have.length ? ` ${have.length} schon in Backstage, ausgeblendet: ${have.join(", ")}.` : "";
+    const allKnown = entry.results.length > 0 && tipsShown.length === 0 && entry.results.every((r) => r.check !== "checking")
+      ? " Alle Tipps zu diesem Thema habt ihr schon. Mit „Neu suchen“ gibt es neue." : "";
+    setTipsStatus(`Tipps zu ${topic} in Hamburg aus der Websuche (Blogs, Creator, Magazine). Bitte vor dem Besuch kurz prüfen.${dropped}${haveText}${allKnown}`, false);
     const d = new Date(entry.at).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" });
     const src = entry.sources && entry.sources.length ? ` · Quellen: ${entry.sources.map(escapeHtml).join(", ")}` : "";
     const meta = document.getElementById("tips-meta");
@@ -3224,11 +3261,11 @@
         if (c && c.status === "closed") { dropped.push(r.name); return; }
         kept.push({ ...r, check: c && c.status === "open" ? "open" : "unknown" });
       });
-      entry.results = kept.slice(0, 6);
+      entry.results = kept;
       entry.dropped = dropped;
     } catch (err) {
       console.error("Öffnungs Check fehlgeschlagen", err);
-      entry.results = entry.results.slice(0, 6).map((r) => ({ ...r, check: "unchecked" }));
+      entry.results = entry.results.map((r) => ({ ...r, check: "unchecked" }));
     }
     entry.verified = true;
     saveTips(); // erst nach der Prüfung speichern, damit nie ein halber Stand liegen bleibt
@@ -3289,6 +3326,7 @@
     document.getElementById("spots-main-view").classList.add("hidden");
     document.getElementById("spots-archive-view").classList.add("hidden");
     document.getElementById("spots-tips-view").classList.remove("hidden");
+    if (tipsActiveTopic && tipsStore[tipsActiveTopic]) showTips(tipsActiveTopic, tipsStore[tipsActiveTopic]);
     window.scrollTo(0, 0);
   });
   ["spots-tips-back", "spots-tips-back-bottom"].forEach((id) => {

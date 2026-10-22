@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-<meta name="app-version" content="2.0.0" />
+<meta name="app-version" content="2.1.2" />
 <title>Backstage by BierAmStrand</title>
 
 <!-- App-Icon: dunkles Quadrat mit goldenem "B" -->
@@ -1261,9 +1261,20 @@
   // 2.0.1 für Fehlerbehebungen und Kleinigkeiten, 2.1.0 für neue Funktionen, 3.0.0 für große Umbauten.
   // Die Nummer steht zusätzlich im meta Tag app-version im Kopf der Seite, beide müssen gleich sein.
   // Geänderte Functions bekommen im Kopf ihrer Datei dieselbe Nummer, damit man auch dort den Stand erkennt.
-  const APP_VERSION = "2.0.0";
+  const APP_VERSION = "2.1.2";
   const APP_RELEASED = "2026-10-22";
   const CHANGELOG = [
+    { v: "2.1.2", date: "2026-10-22", title: "Karte ohne Ebenen Schalter", items: [
+      "Der Schalter oben rechts in der Karte ist weg, Locations und Konzerte sind immer beide zu sehen",
+    ] },
+    { v: "2.1.1", date: "2026-10-22", title: "Konzerte mit Straße im Ort und Vorbands aus der Idee", items: [
+      "Konzerte, bei denen der Ort mit Straße eingetragen ist (zum Beispiel Gruenspan, Lagerstraße 11), werden jetzt gefunden: Marker in der Karte und Essen in der Nähe erscheinen",
+      "Vorbands, die über eine Idee nur in der Notiz standen, werden zu echten Vorbands mit Spotify Links",
+    ] },
+    { v: "2.1.0", date: "2026-10-22", title: "Konzerte in Plano mit Adresse und Vorbands", items: [
+      "Konzerte in Plano bekommen Straße, PLZ und Ort des Veranstaltungsorts automatisch, auch im Karten Popup und im Maps Link",
+      "Vorbands mit Spotify Links erscheinen automatisch: erst aus dem Live Radar, sonst per Suche beim Speichern, bei älteren Konzerten über Vorbands suchen",
+    ] },
     { v: "2.0.0", date: "2026-10-22", title: "Einkehr, Live, Tipps und Admin Apps", items: [
       "Einkehr statt Essen: Locations mit Karte, Bewertung, Öffnungszeiten und den Markierungen Newcomer und Im Trend",
       "Taplist von Untappd bei Locations mit Untappd Link",
@@ -1917,6 +1928,92 @@
     if (didCleanup) persist();
   }
 
+  // ---- Vorbands für Konzerte in Plano: erst aus dem Live Speicher (kostenlos), sonst per Suche ----
+  // Kommt ein Konzert über eine Idee nach Plano, stehen die Vorbands nur als Text in der Notiz ("Gruenspan Hamburg · Vorbands: A, B, C").
+  // Daraus wird das Feld Vorbands, damit Plano die Spotify Links zeigt. Der Rest der Notiz bleibt stehen.
+  function pullSupportFromNote(obj) {
+    if (!obj || obj.supportActs || !obj.note) return false;
+    const m = obj.note.match(/(?:^|[·|;\n])\s*Vorbands?\s*:\s*([^·|;\n]+)/i);
+    if (!m) return false;
+    const names = m[1].split(",").map((x) => x.trim()).filter(Boolean);
+    if (names.length === 0) return false;
+    obj.supportActs = names.join(", ");
+    obj.note = obj.note.replace(m[0], "").replace(/^[\s·|;]+|[\s·|;]+$/g, "").trim();
+    return true;
+  }
+  const supportSearching = new Set();
+  const supportFailed = new Set(); // Suche selbst ist schiefgegangen (nur für diese Sitzung gemerkt)
+  const SUPPORT_NOISE = /\b(live|tour|konzert|concert|in hamburg|tickets?|show|world|anniversary|europe|europa)\b/gi;
+  function normText(v) { return String(v || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim(); }
+  // Bandname aus dem Titel: bevorzugt eine Band aus dem Live Radar, sonst der Titel ohne Zusätze wie live oder Tour
+  function artistForEvent(ev) {
+    const t = normText(ev.title);
+    const match = trackedArtists.filter((a) => { const n = normText(a); return n && (" " + t + " ").includes(" " + n + " "); }).sort((a, b) => b.length - a.length)[0];
+    if (match) return match;
+    return String(ev.title || "").replace(SUPPORT_NOISE, " ").replace(/\s+/g, " ").trim();
+  }
+  // Treffer aus den Daten der Konzertsuche: Hamburg Show oder nächster Tourtermin, aber nur wenn das Datum zum Plano Eintrag passt
+  function supportFromData(data, ev) {
+    if (!data) return null;
+    if (data.hasHamburgShow && ccParseGermanDate(data.date) === ev.date) return { support: data.supportActs || "", time: data.time || "" };
+    if (data.nearestShowDate && ccParseGermanDate(data.nearestShowDate) === ev.date) return { support: data.nearestShowSupportActs || "", time: data.nearestShowTime || "" };
+    return null;
+  }
+  function supportFromCache(ev) {
+    const artist = artistForEvent(ev);
+    const cached = artist && concertCache[artist.toLowerCase()];
+    return cached ? supportFromData(cached.data, ev) : null;
+  }
+  function applySupport(ev, found) {
+    if (!found) return false;
+    let changed = false;
+    if (found.support && !ev.supportActs) { ev.supportActs = found.support; changed = true; }
+    if (found.time && !ev.time) { ev.time = found.time; changed = true; }
+    return changed;
+  }
+  // allowSearch: true startet die Konzertsuche (eine Perplexity Abfrage), false nutzt nur den vorhandenen Speicher
+  async function findSupportForEvent(id, allowSearch) {
+    const ev = events.find((x) => x.id === id);
+    if (!ev || ev.type !== "Konzert" || supportSearching.has(id)) return;
+    let found = supportFromCache(ev);
+    if (!found && allowSearch) {
+      supportSearching.add(id);
+      renderEvents();
+      let searchOk = false;
+      supportFailed.delete(id);
+      try {
+        const artist = artistForEvent(ev);
+        const res = await fetch("/.netlify/functions/get-concerts", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ band: artist }) });
+        if (!res.ok) throw new Error("HTTP " + res.status);
+        found = supportFromData(await res.json(), ev);
+        searchOk = true;
+      } catch (err) {
+        console.error("Vorbands suchen fehlgeschlagen", err);
+        supportFailed.add(id);
+      } finally {
+        supportSearching.delete(id);
+      }
+      const cur = events.find((x) => x.id === id);
+      if (cur && searchOk) { cur.supportCheckedAt = Date.now(); applySupport(cur, found); persist(); }
+      renderEvents();
+      return;
+    }
+    const changed = applySupport(ev, found);
+    if (found) ev.supportCheckedAt = Date.now();
+    if (changed || found) { persist(); renderEvents(); }
+  }
+  function supportSearchHtml(ev, dim) {
+    if (ev.type !== "Konzert" || ev.supportActs || dim) return "";
+    if (supportSearching.has(ev.id)) return `<div class="cc-card-info" style="margin:6px 0;">🔎 Vorbands werden gesucht …</div>`;
+    if (supportFailed.has(ev.id)) return `<div style="margin:6px 0;"><span style="color:var(--muted); font-size:12px;">Die Suche hat gerade nicht geklappt. </span><button type="button" class="tips-link" data-find-support="${escapeHtml(ev.id)}" style="font-size:13px;">🔎 Nochmal suchen</button></div>`;
+    const checked = ev.supportCheckedAt ? `<span style="color:var(--muted); font-size:12px;">Keine Vorbands gefunden (Stand ${escapeHtml(new Date(ev.supportCheckedAt).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" }))}). </span>` : "";
+    return `<div style="margin:6px 0;">${checked}<button type="button" class="tips-link" data-find-support="${escapeHtml(ev.id)}" style="font-size:13px;">🔎 ${ev.supportCheckedAt ? "Nochmal suchen" : "Vorbands suchen"}</button></div>`;
+  }
+  document.getElementById("upcoming-list").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-find-support]");
+    if (b) findSupportForEvent(b.dataset.findSupport, true);
+  });
+
   function renderEvents() {
     const today = new Date().toISOString().slice(0, 10);
     const endOf = (e) => e.dateEnd && e.dateEnd > e.date ? e.dateEnd : e.date;
@@ -1942,10 +2039,11 @@
               <div class="event-title">${escapeHtml(ev.title)}</div>
               <div class="event-meta">
                 <span>🗓️ ${dateLabel}${ev.time ? ` · 🕐 ${escapeHtml(ev.time)} Uhr` : ""}</span>
-                ${ev.location ? `<span>📍 <a href="https://maps.apple.com/?q=${encodeURIComponent(ev.location)}" target="_blank" rel="noreferrer" style="color:var(--paper); text-decoration:underline;">${escapeHtml(ev.location)}</a></span>` : ""}
+                ${ev.location ? `<span>📍 <a href="https://maps.apple.com/?q=${encodeURIComponent([ev.location, ev.street, [ev.zip, ev.city].filter(Boolean).join(" ")].filter(Boolean).join(", "))}" target="_blank" rel="noreferrer" style="color:var(--paper); text-decoration:underline;">${escapeHtml(ev.location)}</a>${ev.street && !normText(ev.location).includes(normText(ev.street)) ? `<span style="color:var(--muted);"> · ${escapeHtml([ev.street, [ev.zip, ev.city].filter(Boolean).join(" ")].filter(Boolean).join(", "))}</span>` : ""}</span>` : ""}
                 <span>👤 ${escapeHtml(ev.who)}</span>
               </div>
               ${ccRenderSupportActsHtml(ev.supportActs)}
+              ${supportSearchHtml(ev, dim)}
               ${ev.note ? `<div class="event-note">${escapeHtml(ev.note)}</div>` : ""}
               ${ev.friends ? `<div class="event-note">👥 ${escapeHtml(ev.friends)}</div>` : ""}
               ${filesHtml}
@@ -2055,7 +2153,13 @@
       });
     });
     // Orte neuer oder geänderter Konzerte suchen und die Karte in Einkehr aktuell halten
-    setTimeout(() => { refreshNearbyData(); renderSpotsMap(true); }, 0);
+    setTimeout(() => {
+      refreshNearbyData(); renderSpotsMap(true);
+      // Ältere Konzerte, bei denen die Vorbands nur in der Notiz stehen, einmalig umstellen
+      const fromNote = events.filter((ev) => ev.type === "Konzert" && pullSupportFromNote(ev));
+      if (fromNote.length) { persist(); renderEvents(); return; }
+      upcomingConcertsWithLocation().filter((ev) => !ev.supportActs && !ev.supportCheckedAt && supportFromCache(ev)).forEach((ev) => findSupportForEvent(ev.id, false));
+    }, 0);
   }
 
   function renderPhotos() {
@@ -2286,6 +2390,7 @@
       friends: document.getElementById("ev-friends").value,
     };
     if (!evData.title || !evData.date) return;
+    pullSupportFromNote(evData);
     if (evData.dateEnd && evData.dateEnd < evData.date) {
       alert("Das Enddatum darf nicht vor dem Startdatum liegen.");
       return;
@@ -2346,17 +2451,25 @@
       }
     }
 
+    let savedEventId = null;
+    let searchSupport = false;
     if (editingEventId) {
       const idx = events.findIndex((x) => x.id === editingEventId);
       if (idx !== -1) {
-        const merged = { ...events[idx], ...evData };
+        const before = events[idx];
+        const merged = { ...before, ...evData };
         if (evData.files) { delete merged.fileUrl; delete merged.fileName; }
+        // Nur bei geänderter Band oder geändertem Datum neu suchen, nicht bei jeder Kleinigkeit
+        if (before.title !== merged.title || before.date !== merged.date) { delete merged.supportCheckedAt; searchSupport = true; }
         events[idx] = merged;
+        savedEventId = merged.id;
       }
       editingEventId = null;
       document.getElementById("event-submit-btn").textContent = "Speichern";
     } else {
-      events.push({ id: uid(), createdAt: Date.now(), ...evData });
+      savedEventId = uid();
+      events.push({ id: savedEventId, createdAt: Date.now(), ...evData });
+      searchSupport = true;
     }
     if (promotingIdeaId) {
       ideas = ideas.filter((x) => x.id !== promotingIdeaId);
@@ -2367,6 +2480,9 @@
     renderEvents();
     e.target.reset();
     e.target.classList.add("hidden");
+    // Neues oder geändertes Konzert ohne Vorbands: Vorbands und Uhrzeit automatisch suchen
+    const saved = events.find((x) => x.id === savedEventId);
+    if (searchSupport && saved && saved.type === "Konzert" && !saved.supportActs && saved.date >= new Date().toISOString().slice(0, 10)) findSupportForEvent(savedEventId, true);
   });
 
   document.getElementById("photo-form").addEventListener("submit", async (e) => {
@@ -3028,7 +3144,7 @@
   let nominatimQueue = Promise.resolve();
   function nominatimLookup(q) {
     const run = async () => {
-      const r = await fetch("https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&countrycodes=de&q=" + encodeURIComponent(q), { headers: { "Accept-Language": "de" } });
+      const r = await fetch("https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&addressdetails=1&countrycodes=de&q=" + encodeURIComponent(q), { headers: { "Accept-Language": "de" } });
       if (!r.ok) throw new Error("HTTP " + r.status);
       const arr = await r.json();
       await new Promise((res) => setTimeout(res, 1100));
@@ -3087,6 +3203,29 @@
     return events.filter((ev) => ev.type === "Konzert" && ev.location && (ev.dateEnd && ev.dateEnd > ev.date ? ev.dateEnd : ev.date) >= today);
   }
 
+  // Wird ein Ort mit Straße eingetragen (Gruenspan, Lagerstraße 11, 20357 Hamburg), findet OpenStreetMap ihn mit dem Namen davor oft nicht,
+  // weil der Name dort anders geschrieben ist (Grünspan). Dann hilft die Anschrift allein, zuletzt der Name mit Hamburg.
+  function venueQueries(loc) {
+    const q = String(loc || "").trim();
+    const parts = q.split(",").map((x) => x.trim()).filter(Boolean);
+    const out = [q];
+    if (parts.length >= 2 && !/\d/.test(parts[0]) && parts.slice(1).some((x) => /\d/.test(x))) out.push(parts.slice(1).join(", "));
+    if (parts.length >= 1 && !/hamburg/i.test(q)) out.push(parts[0] + ", Hamburg");
+    return [...new Set(out)].slice(0, 3);
+  }
+  async function geocodeVenue(loc) {
+    for (const q of venueQueries(loc)) {
+      const hit = await nominatimLookup(q);
+      if (hit && !VAGUE_PLACE_TYPES.includes(hit.addresstype)) return hit;
+    }
+    return null;
+  }
+  // Straße, PLZ und Ort eines Treffers (nur wenn es wirklich eine Straße gibt)
+  function addressFromHit(hit) {
+    const a = (hit && hit.address) || {};
+    if (!a.road) return null;
+    return { street: [a.road, a.house_number].filter(Boolean).join(" "), zip: a.postcode || "", city: a.city || a.town || a.village || a.municipality || "" };
+  }
   async function ensureEventCoords() {
     if (eventsGeocoding) return;
     eventsGeocoding = true;
@@ -3094,12 +3233,20 @@
     try {
       for (const ev of upcomingConcertsWithLocation()) {
         const key = ev.location.trim();
-        if (!key || ev.geoKey === key) continue;
+        // Neu suchen bei neuem Ort, und einmalig für Konzerte, die noch keine Adresse haben
+        const needsAddress = ev.geoKey === key && !ev.street && !ev.addrTried;
+        if (!key || (ev.geoKey === key && !needsAddress)) continue;
         try {
-          const hit = await nominatimLookup(key);
+          const hit = await geocodeVenue(key);
+          if (ev.geoKey !== key) { delete ev.street; delete ev.zip; delete ev.city; delete ev.addrTried; }
           ev.geoKey = key;
           delete ev.lat; delete ev.lng;
-          if (hit && !VAGUE_PLACE_TYPES.includes(hit.addresstype)) { ev.lat = parseFloat(hit.lat); ev.lng = parseFloat(hit.lon); }
+          if (hit && !VAGUE_PLACE_TYPES.includes(hit.addresstype)) {
+            ev.lat = parseFloat(hit.lat); ev.lng = parseFloat(hit.lon);
+            const addr = addressFromHit(hit);
+            if (addr) { ev.street = addr.street; ev.zip = addr.zip; ev.city = addr.city; }
+          }
+          ev.addrTried = true;
           changed = true;
         } catch (err) {
           console.error("Suche nach dem Veranstaltungsort fehlgeschlagen", err);
@@ -3108,7 +3255,7 @@
     } finally {
       eventsGeocoding = false;
     }
-    if (changed) persist();
+    if (changed) { persist(); renderEvents(); } // neue Adresse sofort in Plano zeigen
     fillNearby();
     renderSpotsMap(true);
   }
@@ -3162,7 +3309,7 @@
   }
   function concertPopupHtml(ev) {
     const when = [fmtDate(ev.date) + (ev.dateEnd && ev.dateEnd > ev.date ? " bis " + fmtDate(ev.dateEnd) : ""), ev.time].filter(Boolean).join(", ");
-    return `<b>${escapeHtml(ev.title)}</b> 🎸<br>🗓️ ${escapeHtml(when)}<br>📍 ${escapeHtml(ev.location)}<br><a href="#" data-map-event="${escapeHtml(ev.id)}">Im Plano öffnen</a>`;
+    return `<b>${escapeHtml(ev.title)}</b> 🎸<br>🗓️ ${escapeHtml(when)}<br>📍 ${escapeHtml(ev.location)}${ev.street && !normText(ev.location).includes(normText(ev.street)) ? "<br>" + escapeHtml([ev.street, [ev.zip, ev.city].filter(Boolean).join(" ")].filter(Boolean).join(", ")) : ""}<br><a href="#" data-map-event="${escapeHtml(ev.id)}">Im Plano öffnen</a>`;
   }
 
   // Zentriert die Karte auf alle Locations (ohne Locations: Deutschland Übersicht)
@@ -3190,8 +3337,6 @@
       }).addTo(spotsMap);
       spotsMapLayer = L.layerGroup().addTo(spotsMap);
       concertsMapLayer = L.layerGroup().addTo(spotsMap);
-      // Oben rechts lassen sich Locations und Konzerte einzeln ein und ausblenden
-      L.control.layers(null, { "🍻 Locations": spotsMapLayer, "🎸 Konzerte": concertsMapLayer }, { collapsed: true, position: "topright" }).addTo(spotsMap);
       // Tipp auf Im Plano öffnen im Popup eines Konzerts
       spotsMap.on("popupopen", (e) => {
         const a = e.popup.getElement() && e.popup.getElement().querySelector("[data-map-event]");

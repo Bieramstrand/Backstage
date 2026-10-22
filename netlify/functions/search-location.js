@@ -4,8 +4,8 @@
 // Zwei Arten von Anfragen: "query" sucht eine bestimmte Location, "topic" holt Tipps zu einem Thema (Burger, Steak ...)
 // aus Blogs, Creator Seiten und Magazinen.
 const SHARED_TOKEN = "mbcc"; // dasselbe Passwort wie in der Seite, hält Fremde fern
-const TOPICS = ["Burger", "Steak", "Schnitzel", "Pizza", "Chicken", "Tacos", "Griechisch", "Craftbeer", "Bars"];
-const TYPES = ["Restaurant", "Bar", "Craftbeer Bar", "Imbiss", "Burger", "Chicken", "Griechisch", "All You Can Eat", "Pizza", "Steak", "Sonstiges"];
+const TOPICS = ["Burger", "Steak", "Schnitzel", "Pizza", "Chicken", "Tacos", "Fisch", "Griechisch", "Craftbeer", "Bars"];
+const TYPES = ["Restaurant", "Bar", "Craftbeer Bar", "Imbiss", "Burger", "Chicken", "Griechisch", "All You Can Eat", "Pizza", "Steak", "Tacos", "Fisch", "Sonstiges"];
 
 const headers = { "Content-Type": "application/json" };
 const reply = (statusCode, body) => ({ statusCode, headers, body: JSON.stringify(body) });
@@ -70,7 +70,7 @@ exports.handler = async (event) => {
 Regeln:
 - type ist genau einer von: ${TYPES.join(", ")}
 - Craftbeer Bar nur für Bars mit Schwerpunkt auf Craft Beer, Burger für Läden, die vor allem Burger anbieten
-- Pizza für Pizzerien, Steak für Steakhäuser, Chicken für Läden mit Schwerpunkt Hähnchen, Griechisch für griechische Restaurants, All You Can Eat für Läden mit Buffet oder All You Can Eat Konzept
+- Pizza für Pizzerien, Steak für Steakhäuser, Chicken für Läden mit Schwerpunkt Hähnchen, Griechisch für griechische Restaurants, All You Can Eat für Läden mit Buffet oder All You Can Eat Konzept, Tacos für mexikanische Taco Läden und Taquerias, Fisch für Fischrestaurants und Fischimbisse
 - street enthält Straße und Hausnummer, Hausnummernbereiche als "7 bis 11"
 - zip ist die fünfstellige PLZ, city der Ort (bei Hamburg "Hamburg", nicht der Stadtteil)
 - website ist nur die offizielle Seite der Location, sonst leer
@@ -90,7 +90,7 @@ Antworte ausschließlich mit JSON, ohne weiteren Text und ohne Codeblock:
 Regeln:
 - type ist genau einer von: ${TYPES.join(", ")}
 - Craftbeer Bar nur für Bars mit Schwerpunkt auf Craft Beer, Burger für Läden, die vor allem Burger anbieten
-- Pizza für Pizzerien, Steak für Steakhäuser, Chicken für Läden mit Schwerpunkt Hähnchen, Griechisch für griechische Restaurants, All You Can Eat für Läden mit Buffet oder All You Can Eat Konzept
+- Pizza für Pizzerien, Steak für Steakhäuser, Chicken für Läden mit Schwerpunkt Hähnchen, Griechisch für griechische Restaurants, All You Can Eat für Läden mit Buffet oder All You Can Eat Konzept, Tacos für mexikanische Taco Läden und Taquerias, Fisch für Fischrestaurants und Fischimbisse
 - street enthält Straße und Hausnummer, Hausnummernbereiche als "7 bis 11"
 - zip ist die fünfstellige PLZ, city der Ort (bei Hamburg "Hamburg", nicht der Stadtteil)
 - website ist nur die offizielle Seite der Location, sonst leer

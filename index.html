@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-<meta name="app-version" content="2.1.3" />
+<meta name="app-version" content="2.2.0" />
 <title>Backstage by BierAmStrand</title>
 
 <!-- App-Icon: dunkles Quadrat mit goldenem "B" -->
@@ -953,6 +953,7 @@
           <p id="tips-status" class="hidden" style="font-size:13px; color:var(--muted); margin:14px 0 0;"></p>
           <p id="tips-meta" class="hidden" style="font-size:12px; color:var(--muted); margin:6px 0 0;"></p>
           <div id="tips-results"></div>
+          <div id="tips-unconfirmed" class="hidden" style="margin-top:14px;"></div>
           <button type="button" class="btn-back bottom" id="spots-tips-back-bottom">← Zurück zu den Locations</button>
         </div>
 
@@ -1261,9 +1262,14 @@
   // 2.0.1 für Fehlerbehebungen und Kleinigkeiten, 2.1.0 für neue Funktionen, 3.0.0 für große Umbauten.
   // Die Nummer steht zusätzlich im meta Tag app-version im Kopf der Seite, beide müssen gleich sein.
   // Geänderte Functions bekommen im Kopf ihrer Datei dieselbe Nummer, damit man auch dort den Stand erkennt.
-  const APP_VERSION = "2.1.3";
+  const APP_VERSION = "2.2.0";
   const APP_RELEASED = "2026-10-22";
   const CHANGELOG = [
+    { v: "2.2.0", date: "2026-10-22", title: "Tipps: strengere Prüfung auf geschlossene Läden", items: [
+      "Die Prüfung sucht jetzt gezielt nach Schließungen und nach einem anderen Betrieb an der Adresse",
+      "Tipps ohne Bestätigung, dass der Laden noch in Betrieb ist, sind zunächst ausgeblendet und lassen sich einblenden",
+      "Bei Tipps steht das Jahr der Quelle dabei, ältere Bestenlisten werden von der Suche kritischer behandelt",
+    ] },
     { v: "2.1.3", date: "2026-10-22", title: "Vorbands aus Live auch bei abweichendem Datum", items: [
       "Vorbands aus Live erscheinen in Plano auch dann, wenn das Datum nicht übereinstimmt, solange der Ort derselbe ist",
       "Bei abweichendem Datum gibt es einen Hinweis mit den Knöpfen Datum übernehmen und Bleibt so",
@@ -3504,7 +3510,7 @@
             <div style="font-weight:600; overflow-wrap:anywhere;">${escapeHtml(r.name)} <span class="spot-tag">${escapeHtml(r.type)}</span></div>
             ${addr ? `<div style="font-size:13px; color:var(--muted); margin-top:3px;">📍 ${escapeHtml(addr)}</div>` : ""}
             ${r.note ? `<div style="font-size:13px; color:var(--muted); margin-top:3px;">${escapeHtml(r.note)}</div>` : ""}
-            ${r.source ? `<div style="font-size:13px; color:var(--amber); margin-top:3px;">💡 Empfohlen von ${escapeHtml(r.source)}</div>` : ""}
+            ${r.source ? `<div style="font-size:13px; color:var(--amber); margin-top:3px;">💡 Empfohlen von ${escapeHtml(r.source)}${r.sourceYear ? ` (${escapeHtml(r.sourceYear)})` : ""}</div>` : ""}
             ${r.check === "open" ? `<div style="font-size:13px; color:#7fd6a0; margin-top:3px;">✅ Laut Websuche in Betrieb</div>`
               : r.check === "unknown" ? `<div style="font-size:13px; color:var(--amber); margin-top:3px;">⚠️ Betrieb nicht bestätigt, bitte vor dem Besuch prüfen</div>`
               : r.check === "checking" ? `<div style="font-size:13px; color:var(--muted); margin-top:3px;">⏳ Öffnungsstatus wird geprüft …</div>`
@@ -3592,6 +3598,8 @@
   })();
   let tipsResults = [];
   let tipsShown = []; // was auf der Seite wirklich angezeigt wird (ohne bereits übernommene, höchstens 6)
+  let tipsShowUnconfirmed = false; // Tipps, deren Betrieb nicht bestätigt werden konnte, sind zunächst ausgeblendet
+  let tipsUnconfirmedCount = 0;
   function saveTips() {
     try {
       const keep = {};
@@ -3607,8 +3615,18 @@
   }
   function renderTipsResults() {
     const box = document.getElementById("tips-results");
-    tipsShown = tipsResults.filter((r) => !isKnownSpot(r)).slice(0, 6);
+    const fresh = tipsResults.filter((r) => !isKnownSpot(r));
+    tipsUnconfirmedCount = fresh.filter((r) => r.check === "unknown").length;
+    tipsShown = fresh.filter((r) => tipsShowUnconfirmed || r.check !== "unknown").slice(0, 6);
     box.innerHTML = spotResultsHtml(tipsShown, "data-use-tip");
+    const un = document.getElementById("tips-unconfirmed");
+    if (tipsUnconfirmedCount > 0) {
+      un.innerHTML = `<button type="button" class="tips-link" data-tips-unconfirmed style="font-size:13px;">${tipsShowUnconfirmed ? "▾ Tipps ohne Bestätigung wieder ausblenden" : `▸ ${tipsUnconfirmedCount} Tipp${tipsUnconfirmedCount === 1 ? "" : "s"} ohne Bestätigung anzeigen`}</button>${tipsShowUnconfirmed ? "" : `<div style="font-size:12px; color:var(--muted); margin-top:4px;">Hier konnte die Suche nicht bestätigen, dass der Laden noch in Betrieb ist. Oft sind es Läden aus älteren Artikeln.</div>`}`;
+      un.classList.remove("hidden");
+    } else {
+      un.innerHTML = "";
+      un.classList.add("hidden");
+    }
     box.querySelectorAll("[data-use-tip]").forEach((b) => {
       b.addEventListener("click", () => useSpotSearchResult(Number(b.dataset.useTip), tipsShown));
     });
@@ -3622,9 +3640,11 @@
       ? ` ${entry.dropped.length} Treffer aussortiert, weil sie laut Websuche geschlossen sind: ${entry.dropped.join(", ")}.` : "";
     const have = entry.results.filter((r) => isKnownSpot(r)).map((r) => r.name);
     const haveText = have.length ? ` ${have.length} schon in Backstage, ausgeblendet: ${have.join(", ")}.` : "";
-    const allKnown = entry.results.length > 0 && tipsShown.length === 0 && entry.results.every((r) => r.check !== "checking")
+    const allKnown = entry.results.length > 0 && tipsShown.length === 0 && tipsUnconfirmedCount === 0 && entry.results.every((r) => r.check !== "checking")
       ? " Alle Tipps zu diesem Thema habt ihr schon. Mit „Neu suchen“ gibt es neue." : "";
-    setTipsStatus(`Tipps zu ${topic} in Hamburg aus der Websuche (Blogs, Creator, Magazine). Bitte vor dem Besuch kurz prüfen.${dropped}${haveText}${allKnown}`, false);
+    const onlyUnconfirmed = tipsShown.length === 0 && tipsUnconfirmedCount > 0 && !tipsShowUnconfirmed && entry.results.every((r) => r.check !== "checking")
+      ? " Zu diesem Thema konnte die Suche keinen Laden sicher bestätigen." : "";
+    setTipsStatus(`Tipps zu ${topic} in Hamburg aus der Websuche (Blogs, Creator, Magazine). Bitte vor dem Besuch kurz prüfen.${dropped}${haveText}${allKnown}${onlyUnconfirmed}`, false);
     const d = new Date(entry.at).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" });
     const src = entry.sources && entry.sources.length ? ` · Quellen: ${entry.sources.map(escapeHtml).join(", ")}` : "";
     const meta = document.getElementById("tips-meta");
@@ -3698,6 +3718,11 @@
   document.getElementById("spot-tips").addEventListener("click", (e) => {
     const b = e.target.closest("[data-tip-topic]");
     if (b) loadTips(b.dataset.tipTopic, false);
+  });
+  document.getElementById("tips-unconfirmed").addEventListener("click", (e) => {
+    if (!e.target.closest("[data-tips-unconfirmed]")) return;
+    tipsShowUnconfirmed = !tipsShowUnconfirmed;
+    if (tipsActiveTopic && tipsStore[tipsActiveTopic]) showTips(tipsActiveTopic, tipsStore[tipsActiveTopic]);
   });
   document.getElementById("tips-meta").addEventListener("click", (e) => {
     const b = e.target.closest("[data-tips-refresh]");

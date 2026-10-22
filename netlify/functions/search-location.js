@@ -1,6 +1,7 @@
 // Netlify Function "search-location": sucht Gastronomie Locations im Web und liefert Name und Adresse.
 // Nutzt denselben Perplexity Schlüssel wie die Konzert Abfrage (Umgebungsvariable PERPLEXITY_API_KEY).
 // Falls die Variable bei get-concerts anders heißt, hier den Namen anpassen.
+// Version 2.2.0 (22.10.2026), gehört zu Backstage 2.2.0. Bei jeder Änderung dieser Datei die Nummer mit der Seite erhöhen.
 // Zwei Arten von Anfragen: "query" sucht eine bestimmte Location, "topic" holt Tipps zu einem Thema (Burger, Steak ...)
 // aus Blogs, Creator Seiten und Magazinen.
 const SHARED_TOKEN = "mbcc"; // dasselbe Passwort wie in der Seite, hält Fremde fern
@@ -18,22 +19,27 @@ async function verifyPlaces(list) {
   if (items.length === 0) return reply(400, { error: "Keine Locations" });
   const today = new Date().toISOString().slice(0, 10);
   const lines = items.map((x, i) => { const addr = [x.street, [x.zip, x.city].filter(Boolean).join(" ")].filter(Boolean).join(", "); return `${i + 1}. ${x.name}${addr ? " (" + addr + ")" : ""}`; }).join("\n");
-  const prompt = `Heute ist der ${today}. Prüfe für jede dieser Gastronomie Locations in Hamburg, ob sie aktuell noch in Betrieb ist:
+  const prompt = `Heute ist der ${today}. Prüfe für jede dieser Gastronomie Locations in Hamburg, ob sie heute noch in Betrieb ist. Alte Bestenlisten und Artikel führen oft Läden, die längst geschlossen haben. Suche deshalb zuerst gezielt nach Hinweisen auf eine Schließung:
 ${lines}
+Prüfe für jede Location:
+- Gibt es Hinweise auf "dauerhaft geschlossen", "closed permanently", Geschäftsaufgabe, Insolvenz, "letzter Tag", "hat geschlossen", Abschiedsposts oder Presseberichte?
+- Zeigen Verzeichnisse oder Karteneinträge (Google Maps, Yelp, Tripadvisor, Branchenbücher) unter dieser Adresse heute einen ANDEREN Betrieb? Dann hat die Location geschlossen oder ist umgezogen.
+- Gibt es aktuelle Belege (letzte 12 Monate) für den Betrieb unter genau diesem Namen, zum Beispiel aktuelle Öffnungszeiten, neue Beiträge des Ladens oder frische Bewertungen?
 Antworte ausschließlich mit JSON, ohne weiteren Text und ohne Codeblock:
 {"checks":[{"name":"","status":"offen","hint":""}]}
 Regeln:
 - name genau so, wie oben angegeben
 - status ist genau einer von: offen, geschlossen, unklar
-- "offen" nur, wenn du in aktuellen Quellen (offizielle Website, Verzeichnisse, Karteneinträge, Presse, Social Media der letzten 12 Monate) Hinweise findest, dass die Location in Betrieb ist
-- "geschlossen" nur bei klaren Hinweisen auf eine dauerhafte Schließung (Geschäftsaufgabe, Insolvenz, "dauerhaft geschlossen", Umzug ohne Nachfolger am Ort). Ruhetage oder Betriebsferien sind nicht geschlossen.
-- "unklar", wenn du es nicht sicher sagen kannst. Nichts erfinden.
-- hint ist ein kurzer Beleg, höchstens 80 Zeichen`;
+- "geschlossen", wenn es klare Hinweise auf dauerhafte Schließung gibt ODER unter der Adresse heute ein anderer Betrieb geführt wird. Ruhetage oder Betriebsferien sind nicht geschlossen.
+- "offen" nur, wenn du einen aktuellen Beleg aus den letzten 12 Monaten für den Betrieb unter diesem Namen findest und keine Hinweise auf Schließung
+- "unklar" in allen anderen Fällen, auch wenn du nur alte Artikel findest. Nichts erfinden.
+- hint ist ein kurzer Beleg mit Quelle, höchstens 80 Zeichen, zum Beispiel "Cylex 2026: jetzt COLLAB Cocktailbar"`;
+
   try {
     const r = await fetch("https://api.perplexity.ai/chat/completions", {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${process.env.PERPLEXITY_API_KEY}` },
-      body: JSON.stringify({ model: "sonar", temperature: 0.1, max_tokens: 800, messages: [{ role: "user", content: prompt }] }),
+      body: JSON.stringify({ model: "sonar", temperature: 0.1, max_tokens: 1000, messages: [{ role: "user", content: prompt }] }),
     });
     if (!r.ok) return reply(502, { error: "Prüfung fehlgeschlagen" });
     const data = await r.json();
@@ -66,7 +72,7 @@ exports.handler = async (event) => {
   if (!topic && query.length < 2) return reply(400, { error: "Suchbegriff fehlt" });
 
   const rules = (extra) => `Antworte ausschließlich mit JSON, ohne weiteren Text und ohne Codeblock:
-{"results":[{"name":"","type":"","street":"","zip":"","city":"","website":"","note":"","source":""}]}
+{"results":[{"name":"","type":"","street":"","zip":"","city":"","website":"","note":"","source":"","sourceYear":""}]}
 Regeln:
 - type ist genau einer von: ${TYPES.join(", ")}
 - Craftbeer Bar nur für Bars mit Schwerpunkt auf Craft Beer, Burger für Läden, die vor allem Burger anbieten
@@ -81,7 +87,9 @@ ${extra}`;
 Suche dafür ausdrücklich auch auf genussguide-hamburg.com (Genuss Guide Hamburg), hamburg.mitvergnuegen.com (Mit Vergnügen Hamburg) und geheimtipphamburg.de, Kategorie Essen und Trinken (Geheimtipp Hamburg), zum Beispiel mit site: Suchen, und nutze deren Top Listen, Tests und Beiträge zusätzlich zu anderen Quellen.
 ${rules(`- source nennt, wer die Location empfiehlt, zum Beispiel den Namen des Creators, Blogs oder Magazins (bei den genannten Seiten "Genuss Guide Hamburg", "Mit Vergnügen Hamburg" bzw. "Geheimtipp Hamburg"; ist der Beitrag ausdrücklich als Anzeige oder Kooperation gekennzeichnet, hänge " (Anzeige)" an), höchstens 80 Zeichen
 - Nenne nur Empfehlungen, die du in deinen Suchergebnissen tatsächlich findest. Kannst du keine konkrete Empfehlung belegen, bleibt source ein leerer String.
-- Bevorzuge Empfehlungen der letzten zwei Jahre.
+- sourceYear ist das vierstellige Jahr des Beitrags, Artikels oder Videos, aus dem die Empfehlung stammt, sonst ein leerer String
+- Ignoriere Beiträge und Listen, die älter als zwei Jahre sind, außer die Location ist zusätzlich durch eine Quelle der letzten 12 Monate bestätigt. Alte Bestenlisten führen oft Läden, die es nicht mehr gibt.
+- Prüfe vor jeder Nennung, ob an dieser Adresse heute noch genau dieser Betrieb sitzt und nicht inzwischen ein anderer.
 - Lass jede Location weg, bei der du Hinweise auf eine dauerhafte Schließung findest.`)}`;
   const searchPrompt = `Finde bis zu 5 passende Gastronomie Locations (Restaurant, Bar, Craftbeer Bar, Imbiss, Burger, Chicken, Griechisch, All You Can Eat, Pizza, Steak) in Deutschland zur Suche: "${query}".
 Wenn in der Suche kein Ort steht, bevorzuge Hamburg.
@@ -130,6 +138,7 @@ Regeln:
         website: /^https?:\/\//i.test(clean(x.website)) ? clean(x.website) : "",
         note: clean(x.note).slice(0, 100),
         source: topic ? clean(x.source).slice(0, 80) : "",
+        sourceYear: topic && /^(19|20)\d\d$/.test(clean(x.sourceYear)) ? clean(x.sourceYear) : "",
       }))
       .filter((x) => x.name);
     // Quellen der Websuche (nur Domains), damit man Tipps nachprüfen kann

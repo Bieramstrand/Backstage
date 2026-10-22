@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-<meta name="app-version" content="2.1.2" />
+<meta name="app-version" content="2.1.3" />
 <title>Backstage by BierAmStrand</title>
 
 <!-- App-Icon: dunkles Quadrat mit goldenem "B" -->
@@ -1261,9 +1261,14 @@
   // 2.0.1 für Fehlerbehebungen und Kleinigkeiten, 2.1.0 für neue Funktionen, 3.0.0 für große Umbauten.
   // Die Nummer steht zusätzlich im meta Tag app-version im Kopf der Seite, beide müssen gleich sein.
   // Geänderte Functions bekommen im Kopf ihrer Datei dieselbe Nummer, damit man auch dort den Stand erkennt.
-  const APP_VERSION = "2.1.2";
+  const APP_VERSION = "2.1.3";
   const APP_RELEASED = "2026-10-22";
   const CHANGELOG = [
+    { v: "2.1.3", date: "2026-10-22", title: "Vorbands aus Live auch bei abweichendem Datum", items: [
+      "Vorbands aus Live erscheinen in Plano auch dann, wenn das Datum nicht übereinstimmt, solange der Ort derselbe ist",
+      "Bei abweichendem Datum gibt es einen Hinweis mit den Knöpfen Datum übernehmen und Bleibt so",
+      "Die Adresse steht nicht mehr doppelt in der Karte, auch wenn der Ort abgekürzt eingetragen ist",
+    ] },
     { v: "2.1.2", date: "2026-10-22", title: "Karte ohne Ebenen Schalter", items: [
       "Der Schalter oben rechts in der Karte ist weg, Locations und Konzerte sind immer beide zu sehen",
     ] },
@@ -1944,6 +1949,14 @@
   const supportSearching = new Set();
   const supportFailed = new Set(); // Suche selbst ist schiefgegangen (nur für diese Sitzung gemerkt)
   const SUPPORT_NOISE = /\b(live|tour|konzert|concert|in hamburg|tickets?|show|world|anniversary|europe|europa)\b/gi;
+  // Steht die Straße (mit Hausnummer) schon im Text? Tolerant bei Abkürzungen wie Spielbudenpl. gegen Spielbudenplatz
+  function addressInText(text, street) {
+    const m = /^(.*?)(\d+\w*)?\s*$/.exec(String(street || "").trim());
+    const core = normText(m ? m[1] : street).replace(/\s+/g, "");
+    if (core.length < 4) return false;
+    const n = normText(text);
+    return n.replace(/\s+/g, "").includes(core.slice(0, 6)) && (!m || !m[2] || (" " + n + " ").includes(" " + normText(m[2]) + " "));
+  }
   function normText(v) { return String(v || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim(); }
   // Bandname aus dem Titel: bevorzugt eine Band aus dem Live Radar, sonst der Titel ohne Zusätze wie live oder Tour
   function artistForEvent(ev) {
@@ -1953,10 +1966,19 @@
     return String(ev.title || "").replace(SUPPORT_NOISE, " ").replace(/\s+/g, " ").trim();
   }
   // Treffer aus den Daten der Konzertsuche: Hamburg Show oder nächster Tourtermin, aber nur wenn das Datum zum Plano Eintrag passt
+  // gleicher Veranstaltungsort: ein gemeinsames Wort ab vier Buchstaben (Docks gegen Docks Spielbudenpl. 19, Hamburg)
+  function venueMatches(a, b) {
+    const ta = placeTokens(a).filter((t) => t.length >= 4);
+    const tb = placeTokens(b);
+    return ta.some((t) => tb.includes(t));
+  }
+  // Passt das Datum, ist es sicher dieselbe Show. Weicht es ab, zählt der gleiche Ort (dann steht in Plano vermutlich ein falsches Datum, darauf wird hingewiesen).
   function supportFromData(data, ev) {
     if (!data) return null;
-    if (data.hasHamburgShow && ccParseGermanDate(data.date) === ev.date) return { support: data.supportActs || "", time: data.time || "" };
-    if (data.nearestShowDate && ccParseGermanDate(data.nearestShowDate) === ev.date) return { support: data.nearestShowSupportActs || "", time: data.nearestShowTime || "" };
+    const hh = data.hasHamburgShow ? ccParseGermanDate(data.date) : "";
+    if (hh && hh === ev.date) return { support: data.supportActs || "", time: data.time || "", dateMatch: true };
+    if (hh && venueMatches(data.location, ev.location)) return { support: data.supportActs || "", time: "", dateMatch: false, liveDate: hh };
+    if (data.nearestShowDate && ccParseGermanDate(data.nearestShowDate) === ev.date) return { support: data.nearestShowSupportActs || "", time: data.nearestShowTime || "", dateMatch: true };
     return null;
   }
   function supportFromCache(ev) {
@@ -1969,6 +1991,7 @@
     let changed = false;
     if (found.support && !ev.supportActs) { ev.supportActs = found.support; changed = true; }
     if (found.time && !ev.time) { ev.time = found.time; changed = true; }
+    if (found.liveDate && found.liveDate !== ev.date && ev.liveDate !== found.liveDate) { ev.liveDate = found.liveDate; changed = true; }
     return changed;
   }
   // allowSearch: true startet die Konzertsuche (eine Perplexity Abfrage), false nutzt nur den vorhandenen Speicher
@@ -1999,8 +2022,12 @@
       return;
     }
     const changed = applySupport(ev, found);
-    if (found) ev.supportCheckedAt = Date.now();
+    if (found) { ev.supportCheckedAt = Date.now(); ev.supportFromCacheAt = Date.now(); }
     if (changed || found) { persist(); renderEvents(); }
+  }
+  function liveDateHintHtml(ev, dim) {
+    if (dim || ev.type !== "Konzert" || !ev.liveDate || ev.liveDate === ev.date || ev.liveDate === ev.liveDateOk) return "";
+    return `<div class="cc-card-info" style="margin:6px 0;">⚠️ In Live steht dieses Konzert am ${escapeHtml(fmtDate(ev.liveDate))}. <button type="button" class="tips-link" data-take-live-date="${escapeHtml(ev.id)}" style="font-size:13px;">Datum übernehmen</button> · <button type="button" class="tips-link" data-keep-date="${escapeHtml(ev.id)}" style="font-size:13px; color:var(--muted);">Bleibt so</button></div>`;
   }
   function supportSearchHtml(ev, dim) {
     if (ev.type !== "Konzert" || ev.supportActs || dim) return "";
@@ -2011,7 +2038,21 @@
   }
   document.getElementById("upcoming-list").addEventListener("click", (e) => {
     const b = e.target.closest("[data-find-support]");
-    if (b) findSupportForEvent(b.dataset.findSupport, true);
+    if (b) { findSupportForEvent(b.dataset.findSupport, true); return; }
+    const take = e.target.closest("[data-take-live-date]");
+    const keep = e.target.closest("[data-keep-date]");
+    const id = take ? take.dataset.takeLiveDate : keep ? keep.dataset.keepDate : "";
+    const ev = id && events.find((x) => x.id === id);
+    if (!ev) return;
+    if (take) {
+      ev.date = ev.liveDate;
+      if (ev.dateEnd && ev.dateEnd < ev.date) ev.dateEnd = "";
+      delete ev.liveDate;
+    } else {
+      ev.liveDateOk = ev.liveDate;
+    }
+    persist();
+    renderEvents();
   });
 
   function renderEvents() {
@@ -2039,11 +2080,12 @@
               <div class="event-title">${escapeHtml(ev.title)}</div>
               <div class="event-meta">
                 <span>🗓️ ${dateLabel}${ev.time ? ` · 🕐 ${escapeHtml(ev.time)} Uhr` : ""}</span>
-                ${ev.location ? `<span>📍 <a href="https://maps.apple.com/?q=${encodeURIComponent([ev.location, ev.street, [ev.zip, ev.city].filter(Boolean).join(" ")].filter(Boolean).join(", "))}" target="_blank" rel="noreferrer" style="color:var(--paper); text-decoration:underline;">${escapeHtml(ev.location)}</a>${ev.street && !normText(ev.location).includes(normText(ev.street)) ? `<span style="color:var(--muted);"> · ${escapeHtml([ev.street, [ev.zip, ev.city].filter(Boolean).join(" ")].filter(Boolean).join(", "))}</span>` : ""}</span>` : ""}
+                ${ev.location ? `<span>📍 <a href="https://maps.apple.com/?q=${encodeURIComponent([ev.location, ev.street, [ev.zip, ev.city].filter(Boolean).join(" ")].filter(Boolean).join(", "))}" target="_blank" rel="noreferrer" style="color:var(--paper); text-decoration:underline;">${escapeHtml(ev.location)}</a>${ev.street && !addressInText(ev.location, ev.street) ? `<span style="color:var(--muted);"> · ${escapeHtml([ev.street, [ev.zip, ev.city].filter(Boolean).join(" ")].filter(Boolean).join(", "))}</span>` : ""}</span>` : ""}
                 <span>👤 ${escapeHtml(ev.who)}</span>
               </div>
               ${ccRenderSupportActsHtml(ev.supportActs)}
               ${supportSearchHtml(ev, dim)}
+              ${liveDateHintHtml(ev, dim)}
               ${ev.note ? `<div class="event-note">${escapeHtml(ev.note)}</div>` : ""}
               ${ev.friends ? `<div class="event-note">👥 ${escapeHtml(ev.friends)}</div>` : ""}
               ${filesHtml}
@@ -2158,7 +2200,7 @@
       // Ältere Konzerte, bei denen die Vorbands nur in der Notiz stehen, einmalig umstellen
       const fromNote = events.filter((ev) => ev.type === "Konzert" && pullSupportFromNote(ev));
       if (fromNote.length) { persist(); renderEvents(); return; }
-      upcomingConcertsWithLocation().filter((ev) => !ev.supportActs && !ev.supportCheckedAt && supportFromCache(ev)).forEach((ev) => findSupportForEvent(ev.id, false));
+      upcomingConcertsWithLocation().filter((ev) => (!ev.supportActs && !ev.supportFromCacheAt && supportFromCache(ev)) || (ev.liveDate === undefined && ev.supportActs && !ev.supportFromCacheAt && ((f) => f && f.liveDate)(supportFromCache(ev)))).forEach((ev) => findSupportForEvent(ev.id, false));
     }, 0);
   }
 
@@ -3309,7 +3351,7 @@
   }
   function concertPopupHtml(ev) {
     const when = [fmtDate(ev.date) + (ev.dateEnd && ev.dateEnd > ev.date ? " bis " + fmtDate(ev.dateEnd) : ""), ev.time].filter(Boolean).join(", ");
-    return `<b>${escapeHtml(ev.title)}</b> 🎸<br>🗓️ ${escapeHtml(when)}<br>📍 ${escapeHtml(ev.location)}${ev.street && !normText(ev.location).includes(normText(ev.street)) ? "<br>" + escapeHtml([ev.street, [ev.zip, ev.city].filter(Boolean).join(" ")].filter(Boolean).join(", ")) : ""}<br><a href="#" data-map-event="${escapeHtml(ev.id)}">Im Plano öffnen</a>`;
+    return `<b>${escapeHtml(ev.title)}</b> 🎸<br>🗓️ ${escapeHtml(when)}<br>📍 ${escapeHtml(ev.location)}${ev.street && !addressInText(ev.location, ev.street) ? "<br>" + escapeHtml([ev.street, [ev.zip, ev.city].filter(Boolean).join(" ")].filter(Boolean).join(", ")) : ""}<br><a href="#" data-map-event="${escapeHtml(ev.id)}">Im Plano öffnen</a>`;
   }
 
   // Zentriert die Karte auf alle Locations (ohne Locations: Deutschland Übersicht)

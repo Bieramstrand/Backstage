@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<meta name="app-version" content="2.0.0" />
 <title>Backstage by BierAmStrand</title>
 
 <!-- App-Icon: dunkles Quadrat mit goldenem "B" -->
@@ -424,6 +425,7 @@
   .leaflet-container { font-family: inherit; background: #18181a; }
   .spot-card.permclosed { opacity: 0.7; }
   .spot-pin.closed span { background: #9aa0a8; }
+  .concert-pin span { background: #8b7bff; }
   .spot-pin { background: transparent; border: none; }
   .spot-pin span {
     display: flex; align-items: center; justify-content: center;
@@ -537,6 +539,15 @@
   .spot-badge { display: inline-block; font-size: 11px; font-weight: 600; line-height: 1.2; padding: 2px 8px; border-radius: 999px; white-space: nowrap; border: 1px solid transparent; }
   .spot-badge.newcomer { background: rgba(120,200,150,0.15); color: #8fd3a8; border-color: rgba(120,200,150,0.4); }
   .app-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 18px 10px; }
+  .app-version-box { margin: 32px 0 8px; text-align: center; font-size: 12px; color: var(--muted); }
+  .app-version-box .tips-link { color: var(--muted); font-size: 12px; }
+  #app-changelog { margin-top: 12px; padding: 14px 16px; border-radius: 10px; background: rgba(240,239,236,0.05); border: 1px solid rgba(240,239,236,0.12); text-align: left; }
+  #app-changelog h4 { margin: 14px 0 6px; font-size: 13px; color: var(--paper); }
+  #app-changelog h4:first-child { margin-top: 0; }
+  #app-changelog ul { margin: 0; padding-left: 18px; }
+  #app-changelog li { margin: 3px 0; line-height: 1.4; }
+  .app-group-title { font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--amber); margin: 20px 0 10px; }
+  .app-group-title:first-child { margin-top: 14px; }
   .app-tile { display: flex; flex-direction: column; align-items: center; gap: 7px; text-decoration: none; color: var(--paper); -webkit-tap-highlight-color: transparent; }
   .app-tile .app-icon { width: 60px; height: 60px; border-radius: 14px; box-shadow: 0 2px 8px rgba(0,0,0,0.45); background: rgba(240,239,236,0.08); object-fit: cover; display: flex; align-items: center; justify-content: center; font-size: 24px; font-weight: 800; color: var(--amber); }
   .app-tile .app-name { font-size: 11px; font-weight: 700; text-align: center; line-height: 1.2; overflow-wrap: anywhere; }
@@ -650,7 +661,8 @@
         <input type="password" id="pw-input" name="password" autocomplete="current-password" placeholder="Passwort" autofocus />
         <p class="error-text hidden" id="pw-error"></p>
         <button type="submit" class="btn-primary">Entsperren</button>
-        <a href="#" id="admin-link" style="display:block; text-align:center; margin-top:16px; font-size:10px; color:rgba(240,239,236,0.18); text-decoration:none; letter-spacing:0.1em;">ADMIN</a>
+        <p id="lock-version" style="text-align:center; margin:18px 0 0; font-size:10px; color:rgba(240,239,236,0.32); letter-spacing:0.08em;"></p>
+        <a href="#" id="admin-link" style="display:block; text-align:center; margin-top:6px; font-size:10px; color:rgba(240,239,236,0.18); text-decoration:none; letter-spacing:0.1em;">ADMIN</a>
       </form>
     </div>
 
@@ -670,11 +682,11 @@
       </div>
       <div id="admin-notes-view" class="hidden" style="max-width:700px; margin:0 auto; padding:calc(40px + env(safe-area-inset-top, 0px)) 24px 40px;">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; gap:12px;">
-          <h2 class="display" style="font-size:26px; margin:0;">Notizen</h2>
+          <h2 class="display" style="font-size:26px; margin:0;">Notizen<span id="admin-version" style="display:block; font-family:inherit; font-size:11px; font-weight:400; letter-spacing:0.04em; color:var(--muted); margin-top:4px;"></span></h2>
           <a href="#" id="admin-notes-back" style="font-size:13px; color:var(--muted); text-decoration:none; flex-shrink:0;">← Zurück</a>
         </div>
         <div id="admin-apps" style="margin-bottom:24px;">
-          <h3 style="font-size:12px; font-weight:700; letter-spacing:0.08em; text-transform:uppercase; color:var(--muted); margin:0 0 10px;">Meine Apps</h3>
+          <h3 style="font-size:12px; font-weight:700; letter-spacing:0.08em; text-transform:uppercase; color:var(--muted); margin:0 0 10px;">Apps</h3>
           <form id="admin-apps-form" autocomplete="on" style="padding:14px; border-radius:10px; background:rgba(240,239,236,0.06); border:1px solid rgba(240,239,236,0.14);">
             <p style="font-size:13px; color:var(--muted); margin:0 0 10px;">Mit dem Server Passwort entsperren. Die Links liegen nur auf dem Server und stehen nicht im Code der Seite.</p>
             <div style="display:flex; gap:8px;">
@@ -684,7 +696,7 @@
             <p class="error-text hidden" id="admin-apps-error" style="margin:10px 0 0;"></p>
           </form>
           <div id="admin-apps-wrap" class="hidden">
-            <div class="app-grid" id="admin-apps-grid"></div>
+            <div id="admin-apps-grid"></div>
             <div style="text-align:right; margin-top:12px;"><button type="button" class="tips-link" id="admin-apps-lock" style="font-size:12px; color:var(--muted);">Sperren</button></div>
           </div>
         </div>
@@ -712,11 +724,15 @@
         <div class="section-header">
           <div class="left"><span>📰</span><h2>News</h2><span class="count-badge" id="news-count">0</span></div>
         </div>
-        <p style="font-size:14px; color:var(--muted); margin:-8px 0 20px;">Alles, was zuletzt neu eingetragen wurde – Termine, Ideen, Fotos, Videos, Alben und Kommentare.</p>
+        <p style="font-size:14px; color:var(--muted); margin:-8px 0 20px;">Alles, was zuletzt neu eingetragen wurde: Termine, Ideen, Locations, Bands, Fotos, Videos und Alben.</p>
         <div id="news-list"></div>
         <div id="news-empty" class="empty-state hidden">
           <div class="ic">📰</div>
           <p>Noch nichts eingetragen. Sobald ihr loslegt, seht ihr hier alles auf einen Blick.</p>
+        </div>
+        <div class="app-version-box">
+          <button type="button" id="app-version-btn" class="tips-link"></button>
+          <div id="app-changelog" class="hidden"></div>
         </div>
       </section>
 
@@ -846,6 +862,8 @@
               <option>All You Can Eat</option>
               <option>Pizza</option>
               <option>Steak</option>
+              <option>Tacos</option>
+              <option>Fisch</option>
               <option>Sonstiges</option>
             </select>
           </label>
@@ -927,6 +945,7 @@
             <button type="button" data-tip-topic="Pizza">🍕 Pizza</button>
             <button type="button" data-tip-topic="Chicken">🍗 Chicken</button>
             <button type="button" data-tip-topic="Tacos">🌮 Tacos</button>
+            <button type="button" data-tip-topic="Fisch">🐟 Fisch</button>
             <button type="button" data-tip-topic="Griechisch">🥙 Griechisch</button>
             <button type="button" data-tip-topic="Craftbeer">🍺 Craftbeer</button>
             <button type="button" data-tip-topic="Bars">🍸 Bars</button>
@@ -1238,13 +1257,38 @@
   let unlocked = false;
   const PASSWORD = "mbcc";
 
+  // ---- Version: bei JEDER Änderung erhöhen und oben in CHANGELOG einen Eintrag ergänzen ----
+  // 2.0.1 für Fehlerbehebungen und Kleinigkeiten, 2.1.0 für neue Funktionen, 3.0.0 für große Umbauten.
+  // Die Nummer steht zusätzlich im meta Tag app-version im Kopf der Seite, beide müssen gleich sein.
+  // Geänderte Functions bekommen im Kopf ihrer Datei dieselbe Nummer, damit man auch dort den Stand erkennt.
+  const APP_VERSION = "2.0.0";
+  const APP_RELEASED = "2026-10-22";
+  const CHANGELOG = [
+    { v: "2.0.0", date: "2026-10-22", title: "Einkehr, Live, Tipps und Admin Apps", items: [
+      "Einkehr statt Essen: Locations mit Karte, Bewertung, Öffnungszeiten und den Markierungen Newcomer und Im Trend",
+      "Taplist von Untappd bei Locations mit Untappd Link",
+      "Umschalter Alle, Essen und Drinks, dazu die Arten Tacos und Fisch",
+      "Locations Archiv als eigene Seite",
+      "Tipps nach Thema (Beta) mit Öffnungs Check und Quellen",
+      "Konzerte aus Plano erscheinen in der Karte",
+      "Live (früher Konzerte): Band Archiv, zugeklappte Bandkarten, Hinweis bei einer schon vorhandenen Band",
+      "News: gleiche Meldungen vom selben Tag in einer Kachel, Wochenrückblick mit Einkehr und Fotos, News Tab unten in der Leiste",
+      "Admin: Meine Apps mit Passwortschutz auf dem Server, dazu die Kategorie Extern genutzt",
+      "Kommentarfelder gibt es nicht mehr",
+      "Versionsnummer mit dieser Änderungsliste",
+    ] },
+    { v: "1.0.0", date: "", title: "Stand vor der Nummerierung", items: [
+      "Plano, Ideen, Essen, Konzerte, Fotos und News",
+    ] },
+  ];
+
   // Symbol pro Art, für Karte, Locations Liste und News
   const SPOT_MAP_EMOJI = {
-    "Restaurant": "🍽️", "Bar": "🍸", "Craftbeer Bar": "🍺", "Imbiss": "🌭", "Burger": "🍔", "Chicken": "🍗", "Griechisch": "🥙", "All You Can Eat": "🍲", "Pizza": "🍕", "Steak": "🥩", "Sonstiges": "📍",
+    "Restaurant": "🍽️", "Bar": "🍸", "Craftbeer Bar": "🍺", "Imbiss": "🌭", "Burger": "🍔", "Chicken": "🍗", "Griechisch": "🥙", "All You Can Eat": "🍲", "Pizza": "🍕", "Steak": "🥩", "Tacos": "🌮", "Fisch": "🐟", "Sonstiges": "📍",
     "Café": "☕", "Biergarten": "🍺",
   };
   // Umschalter in der Einkehr Liste: nach Art in Essen und Drinks aufgeteilt, Sonstiges nur unter Alle
-  const SPOT_FOOD_TYPES = ["Restaurant", "Imbiss", "Burger", "Chicken", "Griechisch", "All You Can Eat", "Pizza", "Steak"];
+  const SPOT_FOOD_TYPES = ["Restaurant", "Imbiss", "Burger", "Chicken", "Griechisch", "All You Can Eat", "Pizza", "Steak", "Tacos", "Fisch"];
   const SPOT_DRINK_TYPES = ["Bar", "Craftbeer Bar", "Biergarten", "Café"];
   let spotFilter = "all";
   function spotPassesFilter(sp) {
@@ -1300,6 +1344,19 @@
 
   // ---- Admin-Bereich: eigenes Passwort (1350) für private Notizen ----
   const ADMIN_PASSWORD = "1350";
+  // ---- Version anzeigen: Sperrbildschirm, Admin Bereich und unten in den News mit Änderungsliste ----
+  function fmtVersionDate(iso) { return iso ? new Date(iso + "T00:00:00").toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric" }) : ""; }
+  (function renderVersion() {
+    const stamp = `Version ${APP_VERSION} · ${fmtVersionDate(APP_RELEASED)}`;
+    document.getElementById("lock-version").textContent = stamp;
+    document.getElementById("admin-version").textContent = stamp;
+    document.getElementById("app-version-btn").textContent = `Backstage Version ${APP_VERSION} · Was ist neu`;
+    document.getElementById("app-changelog").innerHTML = CHANGELOG.map((c) =>
+      `<h4>Version ${escapeHtml(c.v)}${c.date ? " · " + escapeHtml(fmtVersionDate(c.date)) : ""} · ${escapeHtml(c.title)}</h4><ul>${c.items.map((i) => `<li>${escapeHtml(i)}</li>`).join("")}</ul>`
+    ).join("");
+    document.getElementById("app-version-btn").addEventListener("click", () => document.getElementById("app-changelog").classList.toggle("hidden"));
+  })();
+
   document.getElementById("admin-link").addEventListener("click", (e) => {
     e.preventDefault();
     document.getElementById("admin-pw-input").value = "";
@@ -1353,13 +1410,25 @@
     appsEl.pw().value = "";
     if (forget) { try { sessionStorage.removeItem(APPS_PW_KEY); } catch { /* egal */ } }
   }
+  function appTileHtml(a) {
+    const iconUri = APP_ICONS[a.icon] || APP_ICONS[a.id];
+    const icon = iconUri
+      ? `<img class="app-icon" src="${icon_safe(iconUri)}" alt="" width="60" height="60" />`
+      : `<span class="app-icon" aria-hidden="true">${escapeHtml((a.name || "?").charAt(0).toUpperCase())}</span>`;
+    return `<a class="app-tile" href="${escapeHtml(a.url)}" target="_blank" rel="noopener" title="${escapeHtml(a.beschreibung || a.name)}" aria-label="${escapeHtml(a.name)}">${icon}<span class="app-name">${escapeHtml(a.name)}</span></a>`;
+  }
   function renderMyApps(apps) {
-    appsEl.grid().innerHTML = apps.map((a) => {
-      const icon = APP_ICONS[a.id]
-        ? `<img class="app-icon" src="${icon_safe(APP_ICONS[a.id])}" alt="" width="60" height="60" />`
-        : `<span class="app-icon" aria-hidden="true">${escapeHtml((a.name || "?").charAt(0).toUpperCase())}</span>`;
-      return `<a class="app-tile" href="${escapeHtml(a.url)}" target="_blank" rel="noopener" title="${escapeHtml(a.beschreibung || a.name)}" aria-label="${escapeHtml(a.name)}">${icon}<span class="app-name">${escapeHtml(a.name)}</span></a>`;
-    }).join("");
+    // Gruppen nach Kategorie in der Reihenfolge, in der sie zum ersten Mal vorkommen. Ohne Kategorie gehört eine App zu "Meine Apps".
+    const groups = [];
+    apps.forEach((a) => {
+      const name = (a.kategorie || "").trim() || "Meine Apps";
+      let g = groups.find((x) => x.name === name);
+      if (!g) { g = { name, apps: [] }; groups.push(g); }
+      g.apps.push(a);
+    });
+    appsEl.grid().innerHTML = groups.map((g) =>
+      `${groups.length > 1 ? `<div class="app-group-title">${escapeHtml(g.name)}</div>` : ""}<div class="app-grid">${g.apps.map(appTileHtml).join("")}</div>`
+    ).join("");
     appsEl.form().classList.add("hidden");
     appsEl.wrap().classList.remove("hidden");
   }
@@ -1985,6 +2054,8 @@
         document.getElementById("ev-title").scrollIntoView({ behavior: "smooth", block: "center" });
       });
     });
+    // Orte neuer oder geänderter Konzerte suchen und die Karte in Einkehr aktuell halten
+    setTimeout(() => { refreshNearbyData(); renderSpotsMap(true); }, 0);
   }
 
   function renderPhotos() {
@@ -3039,11 +3110,12 @@
     }
     if (changed) persist();
     fillNearby();
+    renderSpotsMap(true);
   }
 
   // Sorgt dafür, dass Koordinaten für Locations und Konzerte da sind, aber nur wenn es überhaupt etwas zu vergleichen gibt
   async function refreshNearbyData() {
-    if (spots.length === 0 || upcomingConcertsWithLocation().length === 0) return;
+    if (upcomingConcertsWithLocation().length === 0) return;
     await ensureSpotCoords();
     await ensureEventCoords();
     fillNearby();
@@ -3079,6 +3151,20 @@
     });
   }
 
+  // Konzerte aus Plano (kommende, mit gefundenem Ort) als zweite Ebene auf der Karte
+  let concertsMapLayer = null;
+  let spotsMapFitted = false;
+  function concertMapIcon() {
+    return L.divIcon({ className: "spot-pin concert-pin", html: "<span>🎸</span>", iconSize: [32, 32], iconAnchor: [16, 16], popupAnchor: [0, -18] });
+  }
+  function mapConcerts() {
+    return upcomingConcertsWithLocation().filter((ev) => typeof ev.lat === "number" && typeof ev.lng === "number");
+  }
+  function concertPopupHtml(ev) {
+    const when = [fmtDate(ev.date) + (ev.dateEnd && ev.dateEnd > ev.date ? " bis " + fmtDate(ev.dateEnd) : ""), ev.time].filter(Boolean).join(", ");
+    return `<b>${escapeHtml(ev.title)}</b> 🎸<br>🗓️ ${escapeHtml(when)}<br>📍 ${escapeHtml(ev.location)}<br><a href="#" data-map-event="${escapeHtml(ev.id)}">Im Plano öffnen</a>`;
+  }
+
   // Zentriert die Karte auf alle Locations (ohne Locations: Deutschland Übersicht)
   function recenterSpotsMap() {
     if (!spotsMap) return;
@@ -3087,9 +3173,10 @@
     if (spotsMapPts.length === 1) spotsMap.setView(spotsMapPts[0], 15);
     else if (spotsMapPts.length > 1) spotsMap.fitBounds(spotsMapPts, { padding: [30, 30], maxZoom: 15 });
     else spotsMap.setView([51.1, 10.4], 6);
+    spotsMapFitted = true;
   }
 
-  async function renderSpotsMap() {
+  async function renderSpotsMap(keepView) {
     const wrap = document.getElementById("spots-map-wrap");
     if (!wrap || wrap.classList.contains("hidden")) return;
     const status = document.getElementById("spots-map-status");
@@ -3102,6 +3189,21 @@
         attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> Mitwirkende',
       }).addTo(spotsMap);
       spotsMapLayer = L.layerGroup().addTo(spotsMap);
+      concertsMapLayer = L.layerGroup().addTo(spotsMap);
+      // Oben rechts lassen sich Locations und Konzerte einzeln ein und ausblenden
+      L.control.layers(null, { "🍻 Locations": spotsMapLayer, "🎸 Konzerte": concertsMapLayer }, { collapsed: true, position: "topright" }).addTo(spotsMap);
+      // Tipp auf Im Plano öffnen im Popup eines Konzerts
+      spotsMap.on("popupopen", (e) => {
+        const a = e.popup.getElement() && e.popup.getElement().querySelector("[data-map-event]");
+        if (!a) return;
+        a.addEventListener("click", (ev2) => {
+          ev2.preventDefault();
+          const id = a.dataset.mapEvent;
+          spotsMap.closePopup();
+          goToTab("timeline");
+          setTimeout(() => { const el = document.getElementById("event-" + id); if (el) el.scrollIntoView({ behavior: "smooth", block: "center" }); }, 60);
+        });
+      });
       // Button unten rechts: Karte wieder auf alle Locations zentrieren
       const RecenterControl = L.Control.extend({
         options: { position: "bottomright" },
@@ -3122,6 +3224,7 @@
     }
     spotsMap.invalidateSize();
     spotsMapLayer.clearLayers();
+    concertsMapLayer.clearLayers();
     const pts = [];
     const shownSpots = visibleSpots();
     shownSpots.forEach((sp) => {
@@ -3133,12 +3236,21 @@
       m.bindPopup(() => { const st = sp.closed ? null : spotOpenStatus(sp.hours); return `${popImg}<b>${escapeHtml(sp.name)}</b>${spotBadgeKey(sp) ? " " + SPOT_BADGES[spotBadgeKey(sp)].icon + " " + SPOT_BADGES[spotBadgeKey(sp)].label : ""}<br>${escapeHtml(sp.type || "Restaurant")}${sp.rating ? " " + "★".repeat(sp.rating) : ""}${sp.closed ? "<br>⛔ Dauerhaft geschlossen" : ""}${st ? "<br>" + (st.open ? "🟢 " : "🔴 ") + escapeHtml(st.label) : ""}${addr ? "<br>" + escapeHtml(addr) : ""}<br><a href="${escapeHtml(gmaps)}" target="_blank" rel="noreferrer">In Google Maps öffnen</a>`; }, { minWidth: 200 });
       pts.push([sp.lat, sp.lng]);
     });
+    const spotPts = pts.length;
+    const concertList = mapConcerts();
+    concertList.forEach((ev) => {
+      const m = L.marker([ev.lat, ev.lng], { icon: concertMapIcon() }).addTo(concertsMapLayer);
+      m.bindPopup(() => concertPopupHtml(ev));
+      pts.push([ev.lat, ev.lng]);
+    });
     spotsMapPts = pts;
-    recenterSpotsMap();
-    const missing = shownSpots.length - pts.length;
-    status.textContent = spots.length === 0
+    if (!(keepView === true && spotsMapFitted)) recenterSpotsMap();
+    const missing = shownSpots.length - spotPts;
+    const concertsTotal = upcomingConcertsWithLocation().length;
+    const concertText = concertsTotal === 0 ? "" : ` Dazu ${concertList.length} von ${concertsTotal} Konzerten aus Plano${concertsTotal > concertList.length ? " (bei den übrigen fehlt noch der Ort auf der Karte)" : ""}.`;
+    status.textContent = spots.length === 0 && concertsTotal === 0
       ? "Noch keine Locations eingetragen."
-      : `${pts.length} von ${shownSpots.length} Locations auf der Karte${missing > 0 ? `. ${missing} ohne auffindbare Adresse, dafür Straße, PLZ und Ort eintragen.` : "."}`;
+      : `${spotPts} von ${shownSpots.length} Locations auf der Karte${missing > 0 ? `. ${missing} ohne auffindbare Adresse, dafür Straße, PLZ und Ort eintragen.` : "."}${concertText}`;
   }
 
   document.getElementById("toggle-spots-map").addEventListener("click", (e) => {
@@ -3440,7 +3552,7 @@
     el.style.color = isErr ? "var(--err)" : "var(--muted)";
   }
   let spotImageRemove = false;
-  const SPOT_TYPES = ["Restaurant", "Bar", "Craftbeer Bar", "Imbiss", "Burger", "Chicken", "Griechisch", "All You Can Eat", "Pizza", "Steak", "Sonstiges"];
+  const SPOT_TYPES = ["Restaurant", "Bar", "Craftbeer Bar", "Imbiss", "Burger", "Chicken", "Griechisch", "All You Can Eat", "Pizza", "Steak", "Tacos", "Fisch", "Sonstiges"];
   // Bestehende Einträge mit einer früheren Art (z. B. Café, Biergarten) behalten ihre Art beim Bearbeiten,
   // dafür wird die Art nur für diesen Eintrag vorübergehend in der Auswahl ergänzt.
   function setSpotTypeForEdit(t) {

@@ -1,7 +1,7 @@
 // Netlify Function "search-location": sucht Gastronomie Locations im Web und liefert Name und Adresse.
 // Nutzt denselben Perplexity Schlüssel wie die Konzert Abfrage (Umgebungsvariable PERPLEXITY_API_KEY).
 // Falls die Variable bei get-concerts anders heißt, hier den Namen anpassen.
-// Version 2.3.0 (23.10.2026), gehört zu Backstage 2.3.0. Bei jeder Änderung dieser Datei die Nummer mit der Seite erhöhen.
+// Version 2.4.0 (23.10.2026), gehört zu Backstage 2.4.0. Bei jeder Änderung dieser Datei die Nummer mit der Seite erhöhen.
 // Zwei Arten von Anfragen: "query" sucht eine bestimmte Location, "topic" holt Tipps zu einem Thema (Burger, Steak ...)
 // aus Blogs, Creator Seiten und Magazinen.
 const SHARED_TOKEN = "mbcc"; // dasselbe Passwort wie in der Seite, hält Fremde fern
@@ -57,7 +57,7 @@ Antworte ausschließlich mit JSON, ohne weiteren Text und ohne Codeblock:
 Regeln:
 - name genau so, wie oben angegeben
 - status ist genau einer von: offen, geschlossen, unklar
-- "geschlossen", wenn es klare Hinweise auf dauerhafte Schließung gibt ODER unter der Adresse heute ein anderer Betrieb geführt wird. Ruhetage oder Betriebsferien sind nicht geschlossen.
+- "geschlossen", wenn es klare Hinweise auf dauerhafte Schließung gibt ODER unter der Adresse heute ein anderer Betrieb geführt wird ODER die Location umgezogen ist oder unter neuem Namen an anderer Adresse weiterläuft (Umzug, Nachfolger). Nenne dann im hint den neuen Namen oder Ort. Ruhetage oder Betriebsferien sind nicht geschlossen.
 - "offen" nur, wenn du einen aktuellen Beleg aus den letzten 12 Monaten für den Betrieb unter diesem Namen findest und keine Hinweise auf Schließung
 - "unklar" in allen anderen Fällen, auch wenn du nur alte Artikel findest. Nichts erfinden.
 - hint ist ein kurzer Beleg mit Quelle, höchstens 80 Zeichen, zum Beispiel "Cylex 2026: jetzt COLLAB Cocktailbar"
@@ -120,6 +120,8 @@ Regeln:
 - note ist kurz (Küche, Besonderheit, Preisklasse), höchstens 100 Zeichen
 - Nur real existierende, aktuell geöffnete Locations, nichts erfinden. Unbekannte Felder bleiben leere Strings.
 ${extra}`;
+  // Von euch als geschlossen gemeldete Läden: nicht noch einmal vorschlagen (Namen werden bereinigt, höchstens 40)
+  const exclude = (Array.isArray(payload.exclude) ? payload.exclude : []).map((x) => (typeof x === "string" ? x.replace(/[\r\n"]+/g, " ").replace(/\s+/g, " ").trim().slice(0, 60) : "")).filter(Boolean).slice(0, 40);
   const tipsPrompt = `Nenne bis zu 8 Gastronomie Locations in Hamburg zum Thema "${topic}", die Foodblogger, Food Creator (YouTube, TikTok, Instagram, Blogs), Stadtmagazine oder lokale Medien aktuell empfehlen.
 Suche dafür ausdrücklich auch auf genussguide-hamburg.com (Genuss Guide Hamburg), hamburg.mitvergnuegen.com (Mit Vergnügen Hamburg) und geheimtipphamburg.de, Kategorie Essen und Trinken (Geheimtipp Hamburg), zum Beispiel mit site: Suchen, und nutze deren Top Listen, Tests und Beiträge zusätzlich zu anderen Quellen.
 ${rules(`- source nennt, wer die Location empfiehlt, zum Beispiel den Namen des Creators, Blogs oder Magazins (bei den genannten Seiten "Genuss Guide Hamburg", "Mit Vergnügen Hamburg" bzw. "Geheimtipp Hamburg"; ist der Beitrag ausdrücklich als Anzeige oder Kooperation gekennzeichnet, hänge " (Anzeige)" an), höchstens 80 Zeichen
@@ -127,7 +129,8 @@ ${rules(`- source nennt, wer die Location empfiehlt, zum Beispiel den Namen des 
 - sourceYear ist das vierstellige Jahr des Beitrags, Artikels oder Videos, aus dem die Empfehlung stammt, sonst ein leerer String
 - Ignoriere Beiträge und Listen, die älter als zwei Jahre sind, außer die Location ist zusätzlich durch eine Quelle der letzten 12 Monate bestätigt. Alte Bestenlisten führen oft Läden, die es nicht mehr gibt.
 - Prüfe vor jeder Nennung, ob an dieser Adresse heute noch genau dieser Betrieb sitzt und nicht inzwischen ein anderer.
-- Lass jede Location weg, bei der du Hinweise auf eine dauerhafte Schließung findest.`)}`;
+- Lass jede Location weg, bei der du Hinweise auf eine dauerhafte Schließung findest.${exclude.length ? `
+- Diese Läden haben nach Angabe der Nutzer geschlossen, nenne sie nicht: ${exclude.join("; ")}` : ""}`)}`;
   const searchPrompt = `Finde bis zu 5 passende Gastronomie Locations (Restaurant, Bar, Craftbeer Bar, Imbiss, Burger, Chicken, Griechisch, All You Can Eat, Pizza, Steak) in Deutschland zur Suche: "${query}".
 Wenn in der Suche kein Ort steht, bevorzuge Hamburg.
 Antworte ausschließlich mit JSON, ohne weiteren Text und ohne Codeblock:

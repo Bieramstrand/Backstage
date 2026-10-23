@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-<meta name="app-version" content="2.5.2" />
+<meta name="app-version" content="2.5.3" />
 <title>Backstage by BierAmStrand</title>
 
 <!-- App-Icon: dunkles Quadrat mit goldenem "B" -->
@@ -864,6 +864,7 @@
               <option>Steak</option>
               <option>Tacos</option>
               <option>Fisch</option>
+              <option>Sandwich</option>
               <option>Sonstiges</option>
             </select>
           </label>
@@ -1263,9 +1264,12 @@
   // 2.0.1 für Fehlerbehebungen und Kleinigkeiten, 2.1.0 für neue Funktionen, 3.0.0 für große Umbauten.
   // Die Nummer steht zusätzlich im meta Tag app-version im Kopf der Seite, beide müssen gleich sein.
   // Geänderte Functions bekommen im Kopf ihrer Datei dieselbe Nummer, damit man auch dort den Stand erkennt.
-  const APP_VERSION = "2.5.2";
+  const APP_VERSION = "2.5.3";
   const APP_RELEASED = "2026-10-23";
   const CHANGELOG = [
+    { v: "2.5.3", date: "2026-10-23", title: "Neue Art Sandwich", items: [
+      "Bei Locations gibt es die Art Sandwich mit dem Symbol 🥪, in Liste, Karte, News und Archiv, sie zählt beim Umschalter zu Essen",
+    ] },
     { v: "2.5.2", date: "2026-10-23", title: "Neue Quelle Taste Hamburg", items: [
       "Die Tipps Suche nennt jetzt auch den Foodblog Taste Hamburg ausdrücklich als Quelle",
     ] },
@@ -1333,11 +1337,11 @@
 
   // Symbol pro Art, für Karte, Locations Liste und News
   const SPOT_MAP_EMOJI = {
-    "Restaurant": "🍽️", "Bar": "🍸", "Craftbeer Bar": "🍺", "Imbiss": "🌭", "Burger": "🍔", "Chicken": "🍗", "Griechisch": "🥙", "All You Can Eat": "🍲", "Pizza": "🍕", "Steak": "🥩", "Tacos": "🌮", "Fisch": "🐟", "Sonstiges": "📍",
+    "Restaurant": "🍽️", "Bar": "🍸", "Craftbeer Bar": "🍺", "Imbiss": "🌭", "Burger": "🍔", "Chicken": "🍗", "Griechisch": "🥙", "All You Can Eat": "🍲", "Pizza": "🍕", "Steak": "🥩", "Tacos": "🌮", "Fisch": "🐟", "Sandwich": "🥪", "Sonstiges": "📍",
     "Café": "☕", "Biergarten": "🍺",
   };
   // Umschalter in der Einkehr Liste: nach Art in Essen und Drinks aufgeteilt, Sonstiges nur unter Alle
-  const SPOT_FOOD_TYPES = ["Restaurant", "Imbiss", "Burger", "Chicken", "Griechisch", "All You Can Eat", "Pizza", "Steak", "Tacos", "Fisch"];
+  const SPOT_FOOD_TYPES = ["Restaurant", "Imbiss", "Burger", "Chicken", "Griechisch", "All You Can Eat", "Pizza", "Steak", "Tacos", "Fisch", "Sandwich"];
   const SPOT_DRINK_TYPES = ["Bar", "Craftbeer Bar", "Biergarten", "Café"];
   let spotFilter = "all";
   function spotPassesFilter(sp) {
@@ -3892,7 +3896,7 @@
     el.style.color = isErr ? "var(--err)" : "var(--muted)";
   }
   let spotImageRemove = false;
-  const SPOT_TYPES = ["Restaurant", "Bar", "Craftbeer Bar", "Imbiss", "Burger", "Chicken", "Griechisch", "All You Can Eat", "Pizza", "Steak", "Tacos", "Fisch", "Sonstiges"];
+  const SPOT_TYPES = ["Restaurant", "Bar", "Craftbeer Bar", "Imbiss", "Burger", "Chicken", "Griechisch", "All You Can Eat", "Pizza", "Steak", "Tacos", "Fisch", "Sandwich", "Sonstiges"];
   // Bestehende Einträge mit einer früheren Art (z. B. Café, Biergarten) behalten ihre Art beim Bearbeiten,
   // dafür wird die Art nur für diesen Eintrag vorübergehend in der Auswahl ergänzt.
   function setSpotTypeForEdit(t) {

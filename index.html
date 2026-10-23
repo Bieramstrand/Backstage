@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-<meta name="app-version" content="2.5.0" />
+<meta name="app-version" content="2.5.2" />
 <title>Backstage by BierAmStrand</title>
 
 <!-- App-Icon: dunkles Quadrat mit goldenem "B" -->
@@ -1263,9 +1263,15 @@
   // 2.0.1 für Fehlerbehebungen und Kleinigkeiten, 2.1.0 für neue Funktionen, 3.0.0 für große Umbauten.
   // Die Nummer steht zusätzlich im meta Tag app-version im Kopf der Seite, beide müssen gleich sein.
   // Geänderte Functions bekommen im Kopf ihrer Datei dieselbe Nummer, damit man auch dort den Stand erkennt.
-  const APP_VERSION = "2.5.0";
+  const APP_VERSION = "2.5.2";
   const APP_RELEASED = "2026-10-23";
   const CHANGELOG = [
+    { v: "2.5.2", date: "2026-10-23", title: "Neue Quelle Taste Hamburg", items: [
+      "Die Tipps Suche nennt jetzt auch den Foodblog Taste Hamburg ausdrücklich als Quelle",
+    ] },
+    { v: "2.5.1", date: "2026-10-23", title: "Neue Quelle Hamburg Magazin", items: [
+      "Die Tipps Suche nennt jetzt auch das Hamburg Magazin mit der Rubrik Gastronomie ausdrücklich als Quelle",
+    ] },
     { v: "2.5.0", date: "2026-10-23", title: "Tipps: Genauer prüfen", items: [
       "Tipps ohne Zeiten oder ohne Bestätigung haben den Knopf Genauer prüfen, der dieselbe Abfrage wie nach dem Übernehmen macht",
       "Wird ein Tipp dabei als dauerhaft geschlossen erkannt, verschwindet er, gefundene Zeiten werden beim Übernehmen mitgenommen",

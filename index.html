@@ -2,8 +2,8 @@
 <html lang="de">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-<meta name="app-version" content="2.2.0" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+<meta name="app-version" content="2.3.1" />
 <title>Backstage by BierAmStrand</title>
 
 <!-- App-Icon: dunkles Quadrat mit goldenem "B" -->
@@ -32,7 +32,7 @@
     --err: #e07a6b;
   }
   * { box-sizing: border-box; }
-  html { overflow-x: hidden; max-width: 100%; }
+  html { overflow-x: hidden; max-width: 100%; touch-action: manipulation; } /* kein Zoomen per Doppeltippen */
   body {
     margin: 0;
     background: var(--bg);
@@ -937,8 +937,7 @@
           <div class="section-header">
             <div class="left"><span>💡</span><h2>Tipps nach Thema</h2><span class="beta-tag">Beta</span></div>
           </div>
-          <p style="font-size:14px; color:var(--muted); margin:-8px 0 16px;">Empfehlungen für Hamburg aus Blogs, Creator Seiten und Magazinen. Berücksichtigt werden dabei unter anderem <a href="https://www.genussguide-hamburg.com" target="_blank" rel="noreferrer" style="color:var(--amber);">Genuss Guide Hamburg</a>, <a href="https://hamburg.mitvergnuegen.com" target="_blank" rel="noreferrer" style="color:var(--amber);">Mit Vergnügen Hamburg</a> und <a href="https://geheimtipphamburg.de/kategorie/essen-und-trinken/" target="_blank" rel="noreferrer" style="color:var(--amber);">Geheimtipp Hamburg</a>. Tippe ein Thema an, Treffer lassen sich direkt übernehmen.</p>
-          <div class="tips-chips" id="spot-tips">
+          <div class="tips-chips" id="spot-tips" style="margin-top:4px;">
             <button type="button" data-tip-topic="Burger">🍔 Burger</button>
             <button type="button" data-tip-topic="Steak">🥩 Steak</button>
             <button type="button" data-tip-topic="Schnitzel">🍖 Schnitzel</button>
@@ -1262,9 +1261,19 @@
   // 2.0.1 für Fehlerbehebungen und Kleinigkeiten, 2.1.0 für neue Funktionen, 3.0.0 für große Umbauten.
   // Die Nummer steht zusätzlich im meta Tag app-version im Kopf der Seite, beide müssen gleich sein.
   // Geänderte Functions bekommen im Kopf ihrer Datei dieselbe Nummer, damit man auch dort den Stand erkennt.
-  const APP_VERSION = "2.2.0";
-  const APP_RELEASED = "2026-10-22";
+  const APP_VERSION = "2.3.1";
+  const APP_RELEASED = "2026-10-23";
   const CHANGELOG = [
+    { v: "2.3.1", date: "2026-10-23", title: "Tipps aufgeräumt", items: [
+      "Der Einleitungstext auf der Tipps Seite und die Zeile Empfohlen von unter den Tipps sind weg",
+    ] },
+    { v: "2.3.0", date: "2026-10-23", title: "Tipps mit Öffnungszeiten", items: [
+      "Tipps zeigen, ob der Laden gerade geöffnet ist, und die Öffnungszeiten der Woche in einer Zeile",
+      "Beim Übernehmen eines Tipps werden Zeiten und Einschätzung Newcomer oder Trend gleich mitgenommen, die spätere Suche entfällt",
+    ] },
+    { v: "2.2.1", date: "2026-10-22", title: "Zoomen gesperrt", items: [
+      "Die Seite lässt sich nicht mehr durch Auseinanderziehen oder Doppeltippen zoomen, die Karte zoomt weiter",
+    ] },
     { v: "2.2.0", date: "2026-10-22", title: "Tipps: strengere Prüfung auf geschlossene Läden", items: [
       "Die Prüfung sucht jetzt gezielt nach Schließungen und nach einem anderen Betrieb an der Adresse",
       "Tipps ohne Bestätigung, dass der Laden noch in Betrieb ist, sind zunächst ausgeblendet und lassen sich einblenden",
@@ -1366,6 +1375,10 @@
 
   // ---- Admin-Bereich: eigenes Passwort (1350) für private Notizen ----
   const ADMIN_PASSWORD = "1350";
+  // ---- Zoomen sperren: Safari auf dem iPhone ignoriert user-scalable=no teilweise, deshalb werden die Pinch Gesten zusätzlich abgefangen ----
+  // Die Karte (Leaflet) zoomt weiter, denn sie arbeitet mit eigenen Touch Ereignissen und nicht mit diesen Safari Gesten.
+  ["gesturestart", "gesturechange", "gestureend"].forEach((name) => document.addEventListener(name, (e) => e.preventDefault(), { passive: false }));
+
   // ---- Version anzeigen: Sperrbildschirm, Admin Bereich und unten in den News mit Änderungsliste ----
   function fmtVersionDate(iso) { return iso ? new Date(iso + "T00:00:00").toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric" }) : ""; }
   (function renderVersion() {
@@ -3498,6 +3511,26 @@
     });
   }
 
+  // Kompakte Wochenzeile: gleiche Zeiten an aufeinanderfolgenden Tagen werden zusammengefasst, zum Beispiel
+  // "Mo bis Do 17:00 bis 23:00 · Fr, Sa 17:00 bis 01:00 · So zu"
+  function compactHoursText(hours) {
+    if (!hours) return "";
+    const order = ["mo", "di", "mi", "do", "fr", "sa", "so"];
+    const label = { mo: "Mo", di: "Di", mi: "Mi", do: "Do", fr: "Fr", sa: "Sa", so: "So" };
+    const val = (k) => (hours[k] === "geschlossen" ? "zu" : String(hours[k] || "").replace(/-/g, " bis "));
+    const groups = [];
+    order.forEach((k) => {
+      if (!hours[k]) return;
+      const last = groups[groups.length - 1];
+      if (last && last.val === val(k) && order.indexOf(last.keys[last.keys.length - 1]) === order.indexOf(k) - 1) last.keys.push(k);
+      else groups.push({ keys: [k], val: val(k) });
+    });
+    return groups.map((g) => {
+      const days = g.keys.length === 1 ? label[g.keys[0]] : g.keys.length === 2 ? `${label[g.keys[0]]}, ${label[g.keys[1]]}` : `${label[g.keys[0]]} bis ${label[g.keys[g.keys.length - 1]]}`;
+      return `${days} ${g.val}`;
+    }).join(" · ");
+  }
+
   // Karten für Treffer der Suche und der Tipps. attr bestimmt, welcher Übernehmen Knopf gilt.
   function spotResultsHtml(list, attr) {
     return list.map((r, i) => {
@@ -3510,7 +3543,7 @@
             <div style="font-weight:600; overflow-wrap:anywhere;">${escapeHtml(r.name)} <span class="spot-tag">${escapeHtml(r.type)}</span></div>
             ${addr ? `<div style="font-size:13px; color:var(--muted); margin-top:3px;">📍 ${escapeHtml(addr)}</div>` : ""}
             ${r.note ? `<div style="font-size:13px; color:var(--muted); margin-top:3px;">${escapeHtml(r.note)}</div>` : ""}
-            ${r.source ? `<div style="font-size:13px; color:var(--amber); margin-top:3px;">💡 Empfohlen von ${escapeHtml(r.source)}${r.sourceYear ? ` (${escapeHtml(r.sourceYear)})` : ""}</div>` : ""}
+            ${r.hours ? `<div style="margin-top:4px;">${spotStatusHtml({ hours: r.hours })}</div><div style="font-size:12px; color:var(--muted); margin-top:2px;">🕐 ${escapeHtml(compactHoursText(r.hours))}</div>` : ""}
             ${r.check === "open" ? `<div style="font-size:13px; color:#7fd6a0; margin-top:3px;">✅ Laut Websuche in Betrieb</div>`
               : r.check === "unknown" ? `<div style="font-size:13px; color:var(--amber); margin-top:3px;">⚠️ Betrieb nicht bestätigt, bitte vor dem Besuch prüfen</div>`
               : r.check === "checking" ? `<div style="font-size:13px; color:var(--muted); margin-top:3px;">⏳ Öffnungsstatus wird geprüft …</div>`
@@ -3532,10 +3565,13 @@
     });
   }
 
+  // Zeiten und Einschätzung aus einem Tipp, die beim Speichern der neuen Location mitgenommen werden (spart die spätere Suche)
+  let pendingSpotExtras = null;
   function useSpotSearchResult(i, list) {
     const r = (list || spotSearchResults)[i];
     if (!r) return;
     showSpotsMain(); // kommt der Treffer von der Tipps Seite, zuerst zur normalen Ansicht zurück
+    pendingSpotExtras = r.hours || r.autoBadge ? { name: r.name, hours: r.hours || null, autoBadge: r.autoBadge || "", at: Date.now() } : null;
     editingSpotId = null;
     document.getElementById("spot-submit-btn").textContent = "Speichern";
     document.getElementById("spot-name").value = r.name;
@@ -3667,7 +3703,7 @@
       entry.results.forEach((r, i) => {
         const c = checks[i];
         if (c && c.status === "closed") { dropped.push(r.name); return; }
-        kept.push({ ...r, check: c && c.status === "open" ? "open" : "unknown" });
+        kept.push({ ...r, check: c && c.status === "open" ? "open" : "unknown", hours: c && c.hours ? c.hours : null, autoBadge: c && (c.badge === "newcomer" || c.badge === "trend") ? c.badge : "" });
       });
       entry.results = kept;
       entry.dropped = dropped;
@@ -3937,7 +3973,16 @@
     } else {
       const newSpotId = uid();
       openSpots.add(newSpotId);
-      spots.unshift({ id: newSpotId, createdAt: Date.now(), ...spotData });
+      const extras = {};
+      const pe = pendingSpotExtras;
+      // Nur übernehmen, wenn Name und Zeitpunkt noch zum Tipp passen (wurde der Name geändert, sucht Backstage die Zeiten wie gewohnt)
+      if (pe && pe.name === spotData.name && Date.now() - pe.at < 6 * 3600000) {
+        const now = Date.now();
+        if (pe.hours) { extras.hours = pe.hours; extras.hoursAt = now; extras.hoursTried = now; extras.statusAt = now; }
+        extras.autoBadge = pe.autoBadge || ""; extras.autoBadgeAt = now;
+      }
+      pendingSpotExtras = null;
+      spots.unshift({ id: newSpotId, createdAt: Date.now(), ...spotData, ...extras });
     }
     if (oldImageToDelete && storage) {
       try { storage.refFromURL(oldImageToDelete).delete().catch(() => {}); } catch (err) { /* ignorieren */ }

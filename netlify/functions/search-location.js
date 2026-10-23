@@ -1,7 +1,7 @@
 // Netlify Function "search-location": sucht Gastronomie Locations im Web und liefert Name und Adresse.
 // Nutzt denselben Perplexity Schlüssel wie die Konzert Abfrage (Umgebungsvariable PERPLEXITY_API_KEY).
 // Falls die Variable bei get-concerts anders heißt, hier den Namen anpassen.
-// Version 2.4.0 (23.10.2026), gehört zu Backstage 2.4.0. Bei jeder Änderung dieser Datei die Nummer mit der Seite erhöhen.
+// Version 2.5.2 (23.10.2026), gehört zu Backstage 2.5.2. Bei jeder Änderung dieser Datei die Nummer mit der Seite erhöhen.
 // Zwei Arten von Anfragen: "query" sucht eine bestimmte Location, "topic" holt Tipps zu einem Thema (Burger, Steak ...)
 // aus Blogs, Creator Seiten und Magazinen.
 const SHARED_TOKEN = "mbcc"; // dasselbe Passwort wie in der Seite, hält Fremde fern
@@ -123,8 +123,8 @@ ${extra}`;
   // Von euch als geschlossen gemeldete Läden: nicht noch einmal vorschlagen (Namen werden bereinigt, höchstens 40)
   const exclude = (Array.isArray(payload.exclude) ? payload.exclude : []).map((x) => (typeof x === "string" ? x.replace(/[\r\n"]+/g, " ").replace(/\s+/g, " ").trim().slice(0, 60) : "")).filter(Boolean).slice(0, 40);
   const tipsPrompt = `Nenne bis zu 8 Gastronomie Locations in Hamburg zum Thema "${topic}", die Foodblogger, Food Creator (YouTube, TikTok, Instagram, Blogs), Stadtmagazine oder lokale Medien aktuell empfehlen.
-Suche dafür ausdrücklich auch auf genussguide-hamburg.com (Genuss Guide Hamburg), hamburg.mitvergnuegen.com (Mit Vergnügen Hamburg) und geheimtipphamburg.de, Kategorie Essen und Trinken (Geheimtipp Hamburg), zum Beispiel mit site: Suchen, und nutze deren Top Listen, Tests und Beiträge zusätzlich zu anderen Quellen.
-${rules(`- source nennt, wer die Location empfiehlt, zum Beispiel den Namen des Creators, Blogs oder Magazins (bei den genannten Seiten "Genuss Guide Hamburg", "Mit Vergnügen Hamburg" bzw. "Geheimtipp Hamburg"; ist der Beitrag ausdrücklich als Anzeige oder Kooperation gekennzeichnet, hänge " (Anzeige)" an), höchstens 80 Zeichen
+Suche dafür ausdrücklich auch auf genussguide-hamburg.com (Genuss Guide Hamburg), hamburg.mitvergnuegen.com (Mit Vergnügen Hamburg), geheimtipphamburg.de, Kategorie Essen und Trinken (Geheimtipp Hamburg) hamburg-magazin.de, Rubrik Gastronomie (Hamburg Magazin) und tastehamburg.com (Taste Hamburg), zum Beispiel mit site: Suchen, und nutze deren Top Listen, Tests und Beiträge zusätzlich zu anderen Quellen.
+${rules(`- source nennt, wer die Location empfiehlt, zum Beispiel den Namen des Creators, Blogs oder Magazins (bei den genannten Seiten "Genuss Guide Hamburg", "Mit Vergnügen Hamburg", "Geheimtipp Hamburg", "Hamburg Magazin" bzw. "Taste Hamburg"; ist der Beitrag ausdrücklich als Anzeige oder Kooperation gekennzeichnet, hänge " (Anzeige)" an), höchstens 80 Zeichen
 - Nenne nur Empfehlungen, die du in deinen Suchergebnissen tatsächlich findest. Kannst du keine konkrete Empfehlung belegen, bleibt source ein leerer String.
 - sourceYear ist das vierstellige Jahr des Beitrags, Artikels oder Videos, aus dem die Empfehlung stammt, sonst ein leerer String
 - Ignoriere Beiträge und Listen, die älter als zwei Jahre sind, außer die Location ist zusätzlich durch eine Quelle der letzten 12 Monate bestätigt. Alte Bestenlisten führen oft Läden, die es nicht mehr gibt.

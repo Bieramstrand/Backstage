@@ -1,7 +1,7 @@
 // Netlify Function "search-location": sucht Gastronomie Locations im Web und liefert Name und Adresse.
 // Nutzt denselben Perplexity Schlüssel wie die Konzert Abfrage (Umgebungsvariable PERPLEXITY_API_KEY).
 // Falls die Variable bei get-concerts anders heißt, hier den Namen anpassen.
-// Version 2.2.0 (22.10.2026), gehört zu Backstage 2.2.0. Bei jeder Änderung dieser Datei die Nummer mit der Seite erhöhen.
+// Version 2.3.0 (23.10.2026), gehört zu Backstage 2.3.0. Bei jeder Änderung dieser Datei die Nummer mit der Seite erhöhen.
 // Zwei Arten von Anfragen: "query" sucht eine bestimmte Location, "topic" holt Tipps zu einem Thema (Burger, Steak ...)
 // aus Blogs, Creator Seiten und Magazinen.
 const SHARED_TOKEN = "mbcc"; // dasselbe Passwort wie in der Seite, hält Fremde fern
@@ -12,6 +12,33 @@ const headers = { "Content-Type": "application/json" };
 const reply = (statusCode, body) => ({ statusCode, headers, body: JSON.stringify(body) });
 
 // Prüft in einer eigenen, zweiten Anfrage, ob die Tipps noch in Betrieb sind (getrennt, damit jede Anfrage unter dem Zeitlimit bleibt).
+const DAYS = ["mo", "di", "mi", "do", "fr", "sa", "so"];
+const WINDOW = /^(\d{1,2}):([0-5]\d)-(\d{1,2}):([0-5]\d)$/;
+// Macht aus einer Modellantwort pro Tag entweder "", "geschlossen" oder Zeitfenster wie "12:00-14:30, 17:30-22:00"
+function cleanDay(value) {
+  if (typeof value !== "string") return "";
+  let v = value.trim();
+  if (/^(geschlossen|ruhetag|closed)$/i.test(v)) return "geschlossen";
+  v = v.replace(/[–—−]/g, "-").replace(/\s*uhr/gi, "").replace(/\s+/g, "");
+  const parts = v.split(/[,;]/).filter(Boolean);
+  if (parts.length === 0 || parts.length > 4) return "";
+  const out = [];
+  for (const p of parts) {
+    const m = p.match(WINDOW);
+    if (!m) return "";
+    const h1 = Number(m[1]);
+    const h2 = Number(m[3]);
+    if (h1 > 24 || h2 > 24) return "";
+    out.push(`${String(h1).padStart(2, "0")}:${m[2]}-${String(h2).padStart(2, "0")}:${m[4]}`);
+  }
+  return out.join(", ");
+}
+function cleanHours(raw) {
+  const arr = Array.isArray(raw) ? raw : raw && typeof raw === "object" ? DAYS.map((d) => raw[d]) : [];
+  const hours = {};
+  DAYS.forEach((d, i) => { hours[d] = cleanDay(arr[i]); });
+  return DAYS.some((d) => hours[d] !== "") ? hours : null;
+}
 const normName = (v) => String(v || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "");
 async function verifyPlaces(list) {
   const clean = (v) => (typeof v === "string" ? v.trim().slice(0, 120) : "");
@@ -26,20 +53,22 @@ Prüfe für jede Location:
 - Zeigen Verzeichnisse oder Karteneinträge (Google Maps, Yelp, Tripadvisor, Branchenbücher) unter dieser Adresse heute einen ANDEREN Betrieb? Dann hat die Location geschlossen oder ist umgezogen.
 - Gibt es aktuelle Belege (letzte 12 Monate) für den Betrieb unter genau diesem Namen, zum Beispiel aktuelle Öffnungszeiten, neue Beiträge des Ladens oder frische Bewertungen?
 Antworte ausschließlich mit JSON, ohne weiteren Text und ohne Codeblock:
-{"checks":[{"name":"","status":"offen","hint":""}]}
+{"checks":[{"name":"","status":"offen","hint":"","badge":"","hours":["","","","","","",""]}]}
 Regeln:
 - name genau so, wie oben angegeben
 - status ist genau einer von: offen, geschlossen, unklar
 - "geschlossen", wenn es klare Hinweise auf dauerhafte Schließung gibt ODER unter der Adresse heute ein anderer Betrieb geführt wird. Ruhetage oder Betriebsferien sind nicht geschlossen.
 - "offen" nur, wenn du einen aktuellen Beleg aus den letzten 12 Monaten für den Betrieb unter diesem Namen findest und keine Hinweise auf Schließung
 - "unklar" in allen anderen Fällen, auch wenn du nur alte Artikel findest. Nichts erfinden.
-- hint ist ein kurzer Beleg mit Quelle, höchstens 80 Zeichen, zum Beispiel "Cylex 2026: jetzt COLLAB Cocktailbar"`;
+- hint ist ein kurzer Beleg mit Quelle, höchstens 80 Zeichen, zum Beispiel "Cylex 2026: jetzt COLLAB Cocktailbar"
+- hours hat genau sieben Einträge für Montag bis Sonntag in dieser Reihenfolge: Zeitfenster im 24 Stunden Format wie "17:00-23:00", bei mehreren Fenstern "12:00-14:30, 17:30-22:00", nach Mitternacht zum Beispiel "18:00-02:00", Ruhetag "geschlossen", unbekannt ein leerer String. Nur reguläre Zeiten aus der offiziellen Website oder einem verlässlichen Verzeichnis, nichts erfinden. Bei "geschlossen" bleiben alle Einträge leer.
+- badge ist "newcomer" nur, wenn die Location nachweislich in den letzten 12 Monaten eröffnet hat, "trend" nur, wenn aktuelle Quellen sie ausdrücklich als angesagt beschreiben, sonst ein leerer String`;
 
   try {
     const r = await fetch("https://api.perplexity.ai/chat/completions", {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${process.env.PERPLEXITY_API_KEY}` },
-      body: JSON.stringify({ model: "sonar", temperature: 0.1, max_tokens: 1000, messages: [{ role: "user", content: prompt }] }),
+      body: JSON.stringify({ model: "sonar", temperature: 0.1, max_tokens: 2400, messages: [{ role: "user", content: prompt }] }),
     });
     if (!r.ok) return reply(502, { error: "Prüfung fehlgeschlagen" });
     const data = await r.json();
@@ -51,7 +80,15 @@ Regeln:
       const n = normName(it.name);
       const hit = raw.find((c) => normName(c && c.name) === n) || raw.find((c) => { const m = normName(c && c.name); return m && n && (m.includes(n) || n.includes(m)); });
       const st = hit && typeof hit.status === "string" ? hit.status.toLowerCase().trim() : "";
-      return { name: it.name, status: st === "offen" ? "open" : st === "geschlossen" ? "closed" : "unknown", hint: hit && typeof hit.hint === "string" ? hit.hint.trim().slice(0, 80) : "" };
+      const status = st === "offen" ? "open" : st === "geschlossen" ? "closed" : "unknown";
+      const badgeRaw = hit && typeof hit.badge === "string" ? hit.badge.trim().toLowerCase() : "";
+      return {
+        name: it.name,
+        status,
+        hint: hit && typeof hit.hint === "string" ? hit.hint.trim().slice(0, 80) : "",
+        hours: status === "closed" || !hit ? null : cleanHours(hit.hours),
+        badge: status !== "closed" && (badgeRaw === "newcomer" || badgeRaw === "trend") ? badgeRaw : "",
+      };
     });
     return reply(200, { checks });
   } catch (e) {

@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-<meta name="app-version" content="2.5.3" />
+<meta name="app-version" content="2.6.0" />
 <title>Backstage by BierAmStrand</title>
 
 <!-- App-Icon: dunkles Quadrat mit goldenem "B" -->
@@ -439,18 +439,20 @@
   .leaflet-popup-content a { color: #b36f00; }
 
   .news-item {
-    display: flex; align-items: flex-start; gap: 12px;
-    padding: 14px 16px; border-radius: 10px; background: var(--bg-soft);
-    border: 1px solid rgba(240,239,236,0.1); margin-bottom: 10px;
+    display: flex; align-items: center; gap: 12px;
+    padding: 11px 14px; border-radius: 10px; background: var(--bg-soft);
+    border: 1px solid rgba(240,239,236,0.08); margin-bottom: 8px;
     transition: border-color 0.15s;
   }
   .news-item:hover { border-color: rgba(232,163,61,0.4); }
-  .news-item.news-band-alert { outline: 2px solid var(--amber); outline-offset: -1px; background: rgba(232,163,61,0.06); }
-  .news-item .news-icon { font-size: 18px; flex-shrink: 0; margin-top: 1px; }
-  .news-item .news-text { font-size: 14px; }
+  .news-item .news-icon { font-size: 18px; flex-shrink: 0; }
+  .news-item .news-text { font-size: 14px; line-height: 1.35; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .news-item .news-text.open { display: block; }
+  .news-item .news-sub { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .news-item .news-detail { margin-top: 8px; font-size: 13px; line-height: 1.5; color: var(--muted); }
+  .news-item .news-when { font-size: 12px; color: var(--muted); white-space: nowrap; flex-shrink: 0; }
   .news-item .news-text b { font-weight: 600; }
-  .news-item .news-time { font-size: 12px; color: var(--muted); margin-top: 3px; }
-  .news-item .news-link-icon { font-size: 22px; color: var(--muted); flex-shrink: 0; align-self: center; }
+  .news-item .news-link-icon { font-size: 20px; color: var(--muted); flex-shrink: 0; margin-left: -4px; }
   .news-item:hover .news-link-icon { color: var(--amber); }
 
   .news-highlight { outline: 2px solid var(--amber); outline-offset: 2px; transition: outline-color 1.6s ease; }
@@ -1264,9 +1266,14 @@
   // 2.0.1 für Fehlerbehebungen und Kleinigkeiten, 2.1.0 für neue Funktionen, 3.0.0 für große Umbauten.
   // Die Nummer steht zusätzlich im meta Tag app-version im Kopf der Seite, beide müssen gleich sein.
   // Geänderte Functions bekommen im Kopf ihrer Datei dieselbe Nummer, damit man auch dort den Stand erkennt.
-  const APP_VERSION = "2.5.3";
+  const APP_VERSION = "2.6.0";
   const APP_RELEASED = "2026-10-23";
   const CHANGELOG = [
+    { v: "2.6.0", date: "2026-10-23", title: "Ruhigere News", items: [
+      "Kompaktere Kacheln: die Zeit steht rechts, lange Listen sind ein Satz mit Kommas statt untereinander",
+      "Der orange Rahmen bei neuen Bands ist weg, die Spotify Links stehen weiter im Live Tab",
+      "Der Wochenrückblick ist zugeklappt und zeigt nur eine Kurzfassung, ein Tipp klappt ihn auf",
+    ] },
     { v: "2.5.3", date: "2026-10-23", title: "Neue Art Sandwich", items: [
       "Bei Locations gibt es die Art Sandwich mit dem Symbol 🥪, in Liste, Karte, News und Archiv, sie zählt beim Umschalter zu Essen",
     ] },
@@ -1588,6 +1595,18 @@
     }
   }
 
+  // Kurz für die Nachrichten: 6 Min., 3 Std., 2 T., sonst Datum
+  function fmtRelativeShort(ts) {
+    if (!ts) return "";
+    const min = Math.floor((Date.now() - ts) / 60000);
+    if (min < 1) return "jetzt";
+    if (min < 60) return `${min} Min.`;
+    const hrs = Math.floor(min / 60);
+    if (hrs < 24) return `${hrs} Std.`;
+    const days = Math.floor(hrs / 24);
+    if (days < 7) return `${days} T.`;
+    return new Date(ts).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" });
+  }
   function fmtRelative(ts) {
     if (!ts) return "";
     const diffMs = Date.now() - ts;
@@ -1667,10 +1686,18 @@
       if (mediaText) plainParts.push(`📷 Fotos: ${mediaText}`);
       const weekLabel = new Date(mondayStart).toLocaleDateString("de-DE", { day: "2-digit", month: "short" });
 
+      const countParts = [];
+      if (uniqueBands.length) countParts.push(`${uniqueBands.length} Band${uniqueBands.length === 1 ? "" : "s"}`);
+      if (uniqueEvents.length) countParts.push(`${uniqueEvents.length} Termin${uniqueEvents.length === 1 ? "" : "e"}`);
+      if (uniqueSpots.length) countParts.push(`${uniqueSpots.length} Location${uniqueSpots.length === 1 ? "" : "s"}`);
+      if (uniqueIdeas.length) countParts.push(`${uniqueIdeas.length} Idee${uniqueIdeas.length === 1 ? "" : "n"}`);
+      if (groups.photos.length) countParts.push(photoCount > 0 && videoCount > 0 ? `${photoCount} Fotos, ${videoCount} Video${videoCount === 1 ? "" : "s"}` : photoCount > 0 ? `${photoCount} Foto${photoCount === 1 ? "" : "s"}` : `${videoCount} Video${videoCount === 1 ? "" : "s"}`);
       result.push({
         ts: nextMonday,
         icon: "📰",
-        html: `<b>Wochenrückblick (ab ${weekLabel}):</b><br>${lineParts.join("<br>")}`,
+        html: `<b>Wochenrückblick (ab ${weekLabel})</b>`,
+        subHtml: countParts.join(" · "),
+        detailHtml: lineParts.join("<br>"),
         tab: "news",
         isDigest: true,
         shareText: `📰 Wochenrückblick (ab ${weekLabel}):\n${plainParts.join("\n")}`,
@@ -1695,19 +1722,19 @@
       const first = items[0];
       const n = items.length;
       const who = first.who ? `<b>${escapeHtml(first.who)}</b> ` : "";
-      const lines = items.map((e) => e.itemHtml).join("<br>");
+      const lines = items.map((e) => e.itemHtml).join(", ");
       const m = { ts: first.ts, icon: first.icon, tab: first.tab, targetId: first.targetId, albumId: first.albumId, isBandAlert: first.isBandAlert, kind: first.kind };
       if (first.kind === "band") {
-        m.html = `Neue Bands im Konzert-Radar:<br>${lines}`;
+        m.html = `${n} neue Bands: ${lines}`;
       } else if (first.kind === "event") {
-        m.html = `${who}hat ${n} Termine eingetragen:<br>${lines}`;
+        m.html = `${who}hat ${n} Termine eingetragen: ${lines}`;
       } else if (first.kind === "idea") {
-        m.html = `${who}hat ${n} Ideen eingetragen:<br>${lines}`;
+        m.html = `${who}hat ${n} Ideen eingetragen: ${lines}`;
       } else if (first.kind === "spot") {
         m.icon = "🍻";
-        m.html = `${who}hat ${n} Locations eingetragen:<br>${lines}`;
+        m.html = `${who}hat ${n} Locations eingetragen: ${lines}`;
       } else if (first.kind === "album") {
-        m.html = `${who}hat ${n} Alben angelegt:<br>${lines}`;
+        m.html = `${who}hat ${n} Alben angelegt: ${lines}`;
       } else if (first.kind === "photo") {
         const pc = items.reduce((a, e) => a + (e.pc || 0), 0);
         const vc = items.reduce((a, e) => a + (e.vc || 0), 0);
@@ -1732,12 +1759,11 @@
 
     (bandAddLog || []).forEach((entry) => {
       if (!entry.addedAt) return;
-      const spotifyUrl = `https://open.spotify.com/search/${encodeURIComponent(entry.artist)}`;
-      const item = `<b>${escapeHtml(entry.artist)}</b> · <a href="${spotifyUrl}" target="_blank" rel="noreferrer" style="color:var(--amber); text-decoration:underline;">▶️ Spotify</a>`;
+      const item = `<b>${escapeHtml(entry.artist)}</b>`;
       entries.push({
         ts: entry.addedAt,
         icon: "🎸",
-        html: `Neue Band im Konzert-Radar: ${item}`,
+        html: `Neue Band: ${item}`,
         tab: "concerts",
         isBandAlert: true,
         kind: "band",
@@ -1754,7 +1780,7 @@
     });
 
     spots.forEach((sp) => {
-      if (sp.createdAt) entries.push({ ts: sp.createdAt, icon: spotEmoji(sp), html: `<b>${escapeHtml(sp.who)}</b> hat eine Location eingetragen: <b>${escapeHtml(sp.name)}</b>`, tab: "food", targetId: `spot-${sp.id}`, kind: "spot", who: sp.who, itemHtml: `${escapeHtml(spotEmoji(sp))} <b>${escapeHtml(sp.name)}</b>` });
+      if (sp.createdAt) entries.push({ ts: sp.createdAt, icon: spotEmoji(sp), html: `<b>${escapeHtml(sp.who)}</b> hat eine Location eingetragen: <b>${escapeHtml(sp.name)}</b>`, tab: "food", targetId: `spot-${sp.id}`, kind: "spot", who: sp.who, itemHtml: `<b>${escapeHtml(sp.name)}</b>` });
     });
 
     // Fotos aus demselben Upload Vorgang (batchId) zusammenfassen, wenn es mehr als 2 sind.
@@ -1817,13 +1843,14 @@
     }
     empty.classList.add("hidden");
     let html = recent.map((e, i) => `
-      <div class="news-item${e.isBandAlert ? " news-band-alert" : ""}" data-news-index="${i}" style="cursor:${e.isDigest ? "default" : "pointer"};">
+      <div class="news-item${e.isBandAlert ? " news-band-alert" : ""}" data-news-index="${i}" style="cursor:pointer;">
         <span class="news-icon">${e.icon}</span>
         <div style="flex:1; min-width:0;">
           <div class="news-text">${e.html}</div>
-          <div class="news-time">${fmtRelative(e.ts)}</div>
+          ${e.subHtml ? `<div class="news-sub">${escapeHtml(e.subHtml)}</div>` : ""}
+          ${e.isDigest ? `<div class="news-detail hidden" data-news-detail="${i}">${e.detailHtml}</div>` : ""}
         </div>
-        ${e.isDigest ? `<button type="button" class="icon-btn" data-news-share="${i}" title="Teilen (iMessage, WhatsApp, ...)" style="flex-shrink:0;">📤</button>` : `<span class="news-link-icon">›</span>`}
+        ${e.isDigest ? `<button type="button" class="icon-btn" data-news-share="${i}" title="Teilen (iMessage, WhatsApp, ...)" style="flex-shrink:0;">📤</button>` : `<span class="news-when">${fmtRelativeShort(e.ts)}</span><span class="news-link-icon">›</span>`}
       </div>`).join("");
 
     const remaining = all.length - recent.length;
@@ -1846,7 +1873,12 @@
       el.addEventListener("click", (e) => {
         if (e.target.closest("[data-news-share]") || e.target.closest("a")) return;
         const entry = recent[Number(el.dataset.newsIndex)];
-        if (!entry || entry.isDigest) return;
+        if (entry && entry.isDigest) {
+          const det = el.querySelector("[data-news-detail]");
+          if (det) { det.classList.toggle("hidden"); el.querySelector(".news-sub") && el.querySelector(".news-sub").classList.toggle("hidden", !det.classList.contains("hidden")); }
+          return;
+        }
+        if (!entry) return;
         goToTab(entry.tab);
         if (entry.tab === "photos" && entry.albumId) openAlbum(entry.albumId);
         if (entry.tab === "food" && entry.targetId && entry.targetId.startsWith("spot-")) {

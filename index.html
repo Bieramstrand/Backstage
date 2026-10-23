@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-<meta name="app-version" content="2.3.1" />
+<meta name="app-version" content="2.5.0" />
 <title>Backstage by BierAmStrand</title>
 
 <!-- App-Icon: dunkles Quadrat mit goldenem "B" -->
@@ -953,6 +953,7 @@
           <p id="tips-meta" class="hidden" style="font-size:12px; color:var(--muted); margin:6px 0 0;"></p>
           <div id="tips-results"></div>
           <div id="tips-unconfirmed" class="hidden" style="margin-top:14px;"></div>
+          <div id="tips-closed" style="margin-top:14px;"></div>
           <button type="button" class="btn-back bottom" id="spots-tips-back-bottom">← Zurück zu den Locations</button>
         </div>
 
@@ -1243,6 +1244,7 @@
   let concertCache = {};
   let adminNotes = "";
   let bandAddLog = [];
+  let closedTips = []; // von euch gemeldete Tipps, die es nicht mehr gibt: {name, street, zip, at}
   let visitLog = [];
   let newsExpanded = false;
   const NEWS_COLLAPSED_COUNT = 10;
@@ -1261,9 +1263,19 @@
   // 2.0.1 für Fehlerbehebungen und Kleinigkeiten, 2.1.0 für neue Funktionen, 3.0.0 für große Umbauten.
   // Die Nummer steht zusätzlich im meta Tag app-version im Kopf der Seite, beide müssen gleich sein.
   // Geänderte Functions bekommen im Kopf ihrer Datei dieselbe Nummer, damit man auch dort den Stand erkennt.
-  const APP_VERSION = "2.3.1";
+  const APP_VERSION = "2.5.0";
   const APP_RELEASED = "2026-10-23";
   const CHANGELOG = [
+    { v: "2.5.0", date: "2026-10-23", title: "Tipps: Genauer prüfen", items: [
+      "Tipps ohne Zeiten oder ohne Bestätigung haben den Knopf Genauer prüfen, der dieselbe Abfrage wie nach dem Übernehmen macht",
+      "Wird ein Tipp dabei als dauerhaft geschlossen erkannt, verschwindet er, gefundene Zeiten werden beim Übernehmen mitgenommen",
+    ] },
+    { v: "2.4.0", date: "2026-10-23", title: "Tipps: Gibt es nicht mehr", items: [
+      "Bei jedem Tipp gibt es den Knopf Gibt es nicht mehr, der Laden erscheint dann bei euch allen nicht mehr",
+      "Gemeldete Läden stehen unten in einer Liste und lassen sich wieder zulassen",
+      "Die Suche bekommt die gemeldeten Läden mit, damit sie nicht erneut vorgeschlagen werden",
+      "Die Prüfung achtet jetzt auch auf Umzüge und Nachfolger an derselben Adresse",
+    ] },
     { v: "2.3.1", date: "2026-10-23", title: "Tipps aufgeräumt", items: [
       "Der Einleitungstext auf der Tipps Seite und die Zeile Empfohlen von unter den Tipps sind weg",
     ] },
@@ -1520,7 +1532,7 @@
   function persist() {
     renderNews();
     if (!docRef) return;
-    docRef.set({ events, photos, playlists, ideas, albums, trackedArtists, concertCache, adminNotes, spots, bandAddLog }, { merge: true }).catch((e) => console.error("Speichern fehlgeschlagen", e));
+    docRef.set({ events, photos, playlists, ideas, albums, trackedArtists, concertCache, adminNotes, spots, bandAddLog, closedTips }, { merge: true }).catch((e) => console.error("Speichern fehlgeschlagen", e));
   }
 
   function renderVisitStats() {
@@ -3492,6 +3504,14 @@
     const z = String(zip || "").replace(/\D/g, "");
     return /\d/.test(st) && z.length === 5 ? st + z : "";
   }
+  function sameClosedPlace(r, c) {
+    const n = placeKey(r.name), m = placeKey(c.name);
+    if (n && m && n === m) return true;
+    const a = streetKey(r.street, r.zip), b = streetKey(c.street, c.zip);
+    const rt = placeTokens(r.name).filter((t) => t.length >= 4);
+    return !!a && !!b && a === b && placeTokens(c.name).some((t) => t.length >= 4 && rt.includes(t));
+  }
+  function isClosedTip(r) { return closedTips.some((c) => sameClosedPlace(r, c)); }
   function isKnownSpot(r) {
     const n = placeKey(r.name);
     const rAddr = streetKey(r.street, r.zip);
@@ -3531,6 +3551,18 @@
     }).join(" · ");
   }
 
+  // Genauer prüfen: für einen einzelnen Tipp läuft die gleiche Abfrage wie nach dem Übernehmen (Öffnungszeiten, dauerhaft geschlossen, Newcomer).
+  // Sie ist gezielter als der Sammel Check über alle Tipps eines Themas, kostet aber eine Abfrage pro Tipp und läuft nur auf Tipp.
+  const tipsDeepLoading = new Set();
+  function tipKey(r) { return placeKey(r.name) + "|" + String(r.zip || ""); }
+  function deepCheckHtml(r, i) {
+    if (r.check === "checking") return "";
+    if (tipsDeepLoading.has(tipKey(r))) return `<div style="font-size:12px; color:var(--muted); margin-top:6px;">🔎 Prüfe genauer …</div>`;
+    const note = r.deepNote ? `<div style="font-size:12px; color:var(--muted); margin-top:6px;">${escapeHtml(r.deepNote)}</div>` : "";
+    const need = !r.hours || r.check === "unknown";
+    return note + (need ? `<div style="margin-top:6px;"><button type="button" class="tips-link" data-tip-deep="${i}" style="font-size:13px;">🔎 ${r.deepNote ? "Nochmal genauer prüfen" : "Genauer prüfen"}</button></div>` : "");
+  }
+
   // Karten für Treffer der Suche und der Tipps. attr bestimmt, welcher Übernehmen Knopf gilt.
   function spotResultsHtml(list, attr) {
     return list.map((r, i) => {
@@ -3548,6 +3580,7 @@
               : r.check === "unknown" ? `<div style="font-size:13px; color:var(--amber); margin-top:3px;">⚠️ Betrieb nicht bestätigt, bitte vor dem Besuch prüfen</div>`
               : r.check === "checking" ? `<div style="font-size:13px; color:var(--muted); margin-top:3px;">⏳ Öffnungsstatus wird geprüft …</div>`
               : r.check === "unchecked" ? `<div style="font-size:13px; color:var(--muted); margin-top:3px;">⚠️ Öffnungsstatus nicht geprüft</div>` : ""}
+            ${attr === "data-use-tip" ? deepCheckHtml(r, i) + `<div style="margin-top:6px;"><button type="button" class="tips-link" data-tip-closed="${i}" style="font-size:12px; color:var(--muted);">🚫 Gibt es nicht mehr</button></div>` : ""}
           </div>
           ${known
             ? `<span class="spot-tag" style="flex-shrink:0;">Schon in der Liste</span>`
@@ -3651,10 +3684,12 @@
   }
   function renderTipsResults() {
     const box = document.getElementById("tips-results");
-    const fresh = tipsResults.filter((r) => !isKnownSpot(r));
+    const fresh = tipsResults.filter((r) => !isKnownSpot(r) && !isClosedTip(r));
     tipsUnconfirmedCount = fresh.filter((r) => r.check === "unknown").length;
     tipsShown = fresh.filter((r) => tipsShowUnconfirmed || r.check !== "unknown").slice(0, 6);
     box.innerHTML = spotResultsHtml(tipsShown, "data-use-tip");
+    const cl = document.getElementById("tips-closed");
+    cl.innerHTML = closedTips.length === 0 ? "" : `<details><summary style="font-size:12px; color:var(--muted); cursor:pointer;">🚫 ${closedTips.length} als geschlossen gemeldet</summary><div style="margin-top:8px;">${closedTips.map((c, k) => `<div style="display:flex; justify-content:space-between; align-items:center; gap:10px; padding:5px 0; font-size:13px;"><span style="overflow-wrap:anywhere;">${escapeHtml(c.name)}${c.street ? ` <span style="color:var(--muted);">· ${escapeHtml(c.street)}</span>` : ""}</span><button type="button" class="tips-link" data-tip-reopen="${k}" style="font-size:12px; flex-shrink:0;">Wieder zulassen</button></div>`).join("")}</div></details>`;
     const un = document.getElementById("tips-unconfirmed");
     if (tipsUnconfirmedCount > 0) {
       un.innerHTML = `<button type="button" class="tips-link" data-tips-unconfirmed style="font-size:13px;">${tipsShowUnconfirmed ? "▾ Tipps ohne Bestätigung wieder ausblenden" : `▸ ${tipsUnconfirmedCount} Tipp${tipsUnconfirmedCount === 1 ? "" : "s"} ohne Bestätigung anzeigen`}</button>${tipsShowUnconfirmed ? "" : `<div style="font-size:12px; color:var(--muted); margin-top:4px;">Hier konnte die Suche nicht bestätigen, dass der Laden noch in Betrieb ist. Oft sind es Läden aus älteren Artikeln.</div>`}`;
@@ -3731,7 +3766,7 @@
       const resp = await fetch(SEARCH_ENDPOINT, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ topic, token: PASSWORD }),
+        body: JSON.stringify({ topic, exclude: closedTips.slice(-40).map((c) => c.name), token: PASSWORD }),
       });
       if (!resp.ok) throw new Error("Server antwortet mit " + resp.status);
       const data = await resp.json();
@@ -3754,6 +3789,57 @@
   document.getElementById("spot-tips").addEventListener("click", (e) => {
     const b = e.target.closest("[data-tip-topic]");
     if (b) loadTips(b.dataset.tipTopic, false);
+  });
+  async function deepCheckTip(r) {
+    const key = tipKey(r);
+    if (tipsDeepLoading.has(key)) return;
+    const topic = tipsActiveTopic;
+    const entry = topic && tipsStore[topic];
+    tipsDeepLoading.add(key);
+    if (entry) showTips(topic, entry);
+    try {
+      const res = await fetch("/.netlify/functions/location-hours", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: r.name, street: r.street, zip: r.zip, city: r.city, token: PASSWORD }),
+      });
+      if (!res.ok) throw new Error("HTTP " + res.status);
+      const data = await res.json();
+      if (data.status === "closed") {
+        if (entry) { entry.results = entry.results.filter((x) => x !== r); entry.dropped = (entry.dropped || []).concat(r.name); }
+      } else {
+        if (data.hours) r.hours = data.hours;
+        if (data.badge === "newcomer" || data.badge === "trend") r.autoBadge = data.badge;
+        if (data.hours && data.status === "open") { r.check = "open"; r.deepNote = ""; }
+        else r.deepNote = data.hours ? "Zeiten gefunden, aber kein sicherer Beleg für den Betrieb." : "Auch die genauere Prüfung fand keine Belege.";
+      }
+    } catch (err) {
+      console.error("Genauer prüfen fehlgeschlagen", err);
+      r.deepNote = "Die genauere Prüfung hat gerade nicht geklappt.";
+    } finally {
+      tipsDeepLoading.delete(key);
+    }
+    saveTips();
+    if (entry && tipsActiveTopic === topic) showTips(topic, entry);
+  }
+  document.getElementById("tips-results").addEventListener("click", (e) => {
+    const deep = e.target.closest("[data-tip-deep]");
+    if (deep) { const rr = tipsShown[Number(deep.dataset.tipDeep)]; if (rr) deepCheckTip(rr); return; }
+    const b = e.target.closest("[data-tip-closed]");
+    if (!b) return;
+    const r = tipsShown[Number(b.dataset.tipClosed)];
+    if (!r) return;
+    if (!confirm(`„${r.name}“ als geschlossen melden? Der Tipp erscheint dann bei euch allen nicht mehr.`)) return;
+    if (!isClosedTip(r)) closedTips.push({ name: r.name, street: r.street || "", zip: r.zip || "", at: Date.now() });
+    persist();
+    if (tipsActiveTopic && tipsStore[tipsActiveTopic]) showTips(tipsActiveTopic, tipsStore[tipsActiveTopic]);
+  });
+  document.getElementById("tips-closed").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-tip-reopen]");
+    if (!b) return;
+    closedTips.splice(Number(b.dataset.tipReopen), 1);
+    persist();
+    if (tipsActiveTopic && tipsStore[tipsActiveTopic]) showTips(tipsActiveTopic, tipsStore[tipsActiveTopic]); else renderTipsResults();
   });
   document.getElementById("tips-unconfirmed").addEventListener("click", (e) => {
     if (!e.target.closest("[data-tips-unconfirmed]")) return;
@@ -4513,6 +4599,7 @@
         concertCache = data.concertCache || {};
         adminNotes = data.adminNotes || "";
         bandAddLog = data.bandAddLog || [];
+        closedTips = data.closedTips || [];
         visitLog = data.visitLog || [];
         spots = data.spots || [];
         renderAll();

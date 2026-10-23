@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-<meta name="app-version" content="2.6.0" />
+<meta name="app-version" content="2.6.1" />
 <title>Backstage by BierAmStrand</title>
 
 <!-- App-Icon: dunkles Quadrat mit goldenem "B" -->
@@ -450,6 +450,15 @@
   .news-item .news-text.open { display: block; }
   .news-item .news-sub { font-size: 12px; color: var(--muted); margin-top: 2px; }
   .news-item .news-detail { margin-top: 8px; font-size: 13px; line-height: 1.5; color: var(--muted); }
+  .news-item .news-whenbox { display: flex; flex-direction: column; align-items: flex-end; line-height: 1.25; flex-shrink: 0; }
+  .news-item .news-date { font-size: 11px; color: rgba(240,239,236,0.38); }
+  .news-item .news-range { font-size: 13px; font-weight: 400; color: var(--muted); white-space: nowrap; }
+  .news-item.news-digest { padding: 17px 16px; gap: 14px; border: 1.5px solid var(--amber); background: rgba(232,163,61,0.09); box-shadow: 0 0 0 3px rgba(232,163,61,0.08); }
+  .news-item.news-digest:hover { border-color: var(--amber); }
+  .news-item.news-digest .news-icon { font-size: 28px; }
+  .news-item.news-digest .news-text { font-size: 17px; }
+  .news-item.news-digest .news-sub { font-size: 13.5px; color: rgba(240,239,236,0.78); margin-top: 4px; }
+  .news-item.news-digest .news-detail { color: rgba(240,239,236,0.85); font-size: 14px; }
   .news-item .news-when { font-size: 12px; color: var(--muted); white-space: nowrap; flex-shrink: 0; }
   .news-item .news-text b { font-weight: 600; }
   .news-item .news-link-icon { font-size: 20px; color: var(--muted); flex-shrink: 0; margin-left: -4px; }
@@ -1266,9 +1275,13 @@
   // 2.0.1 für Fehlerbehebungen und Kleinigkeiten, 2.1.0 für neue Funktionen, 3.0.0 für große Umbauten.
   // Die Nummer steht zusätzlich im meta Tag app-version im Kopf der Seite, beide müssen gleich sein.
   // Geänderte Functions bekommen im Kopf ihrer Datei dieselbe Nummer, damit man auch dort den Stand erkennt.
-  const APP_VERSION = "2.6.0";
+  const APP_VERSION = "2.6.1";
   const APP_RELEASED = "2026-10-23";
   const CHANGELOG = [
+    { v: "2.6.1", date: "2026-10-23", title: "Wochenrückblick hervorgehoben, Datum bei den News", items: [
+      "Der Wochenrückblick hat einen gelben Rahmen, ein größeres Symbol und eine größere Schrift und nennt den Zeitraum, zum Beispiel 12. bis 18. Okt.",
+      "Neben der Zeit steht jetzt das Datum, bei Meldungen von heute die Uhrzeit",
+    ] },
     { v: "2.6.0", date: "2026-10-23", title: "Ruhigere News", items: [
       "Kompaktere Kacheln: die Zeit steht rechts, lange Listen sind ein Satz mit Kommas statt untereinander",
       "Der orange Rahmen bei neuen Bands ist weg, die Spotify Links stehen weiter im Live Tab",
@@ -1607,6 +1620,13 @@
     if (days < 7) return `${days} T.`;
     return new Date(ts).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" });
   }
+  function fmtNewsDate(ts) {
+    if (!ts) return "";
+    const d = new Date(ts), now = new Date();
+    return d.toDateString() === now.toDateString()
+      ? d.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })
+      : d.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" });
+  }
   function fmtRelative(ts) {
     if (!ts) return "";
     const diffMs = Date.now() - ts;
@@ -1685,6 +1705,11 @@
       if (uniqueIdeas.length) plainParts.push(`💡 Ideen: ${uniqueIdeas.join(", ")}`);
       if (mediaText) plainParts.push(`📷 Fotos: ${mediaText}`);
       const weekLabel = new Date(mondayStart).toLocaleDateString("de-DE", { day: "2-digit", month: "short" });
+      const sundayDate = new Date(mondayStart + 6 * 24 * 60 * 60 * 1000);
+      const fromD = new Date(mondayStart);
+      const weekRange = fromD.getMonth() === sundayDate.getMonth()
+        ? `${fromD.getDate()}. bis ${sundayDate.toLocaleDateString("de-DE", { day: "numeric", month: "short" })}`
+        : `${fromD.toLocaleDateString("de-DE", { day: "numeric", month: "short" })} bis ${sundayDate.toLocaleDateString("de-DE", { day: "numeric", month: "short" })}`;
 
       const countParts = [];
       if (uniqueBands.length) countParts.push(`${uniqueBands.length} Band${uniqueBands.length === 1 ? "" : "s"}`);
@@ -1695,7 +1720,7 @@
       result.push({
         ts: nextMonday,
         icon: "📰",
-        html: `<b>Wochenrückblick (ab ${weekLabel})</b>`,
+        html: `<b>Wochenrückblick</b> <span class="news-range">${escapeHtml(weekRange)}</span>`,
         subHtml: countParts.join(" · "),
         detailHtml: lineParts.join("<br>"),
         tab: "news",
@@ -1843,14 +1868,14 @@
     }
     empty.classList.add("hidden");
     let html = recent.map((e, i) => `
-      <div class="news-item${e.isBandAlert ? " news-band-alert" : ""}" data-news-index="${i}" style="cursor:pointer;">
+      <div class="news-item${e.isBandAlert ? " news-band-alert" : ""}${e.isDigest ? " news-digest" : ""}" data-news-index="${i}" style="cursor:pointer;">
         <span class="news-icon">${e.icon}</span>
         <div style="flex:1; min-width:0;">
           <div class="news-text">${e.html}</div>
           ${e.subHtml ? `<div class="news-sub">${escapeHtml(e.subHtml)}</div>` : ""}
           ${e.isDigest ? `<div class="news-detail hidden" data-news-detail="${i}">${e.detailHtml}</div>` : ""}
         </div>
-        ${e.isDigest ? `<button type="button" class="icon-btn" data-news-share="${i}" title="Teilen (iMessage, WhatsApp, ...)" style="flex-shrink:0;">📤</button>` : `<span class="news-when">${fmtRelativeShort(e.ts)}</span><span class="news-link-icon">›</span>`}
+        ${e.isDigest ? `<button type="button" class="icon-btn" data-news-share="${i}" title="Teilen (iMessage, WhatsApp, ...)" style="flex-shrink:0;">📤</button>` : `<span class="news-whenbox"><span class="news-when">${fmtRelativeShort(e.ts)}</span><span class="news-date">${fmtNewsDate(e.ts)}</span></span><span class="news-link-icon">›</span>`}
       </div>`).join("");
 
     const remaining = all.length - recent.length;

@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-<meta name="app-version" content="2.6.1" />
+<meta name="app-version" content="2.7.0" />
 <title>Backstage by BierAmStrand</title>
 
 <!-- App-Icon: dunkles Quadrat mit goldenem "B" -->
@@ -449,6 +449,8 @@
   .news-item .news-text { font-size: 14px; line-height: 1.35; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
   .news-item .news-text.open { display: block; }
   .news-item .news-sub { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .news-item .news-goto { display: block; padding: 4px 0; cursor: pointer; }
+  .news-item .news-goto::after { content: " ›"; color: var(--muted); }
   .news-item .news-detail { margin-top: 8px; font-size: 13px; line-height: 1.5; color: var(--muted); }
   .news-item .news-whenbox { display: flex; flex-direction: column; align-items: flex-end; line-height: 1.25; flex-shrink: 0; }
   .news-item .news-date { font-size: 11px; color: rgba(240,239,236,0.38); }
@@ -1275,9 +1277,14 @@
   // 2.0.1 für Fehlerbehebungen und Kleinigkeiten, 2.1.0 für neue Funktionen, 3.0.0 für große Umbauten.
   // Die Nummer steht zusätzlich im meta Tag app-version im Kopf der Seite, beide müssen gleich sein.
   // Geänderte Functions bekommen im Kopf ihrer Datei dieselbe Nummer, damit man auch dort den Stand erkennt.
-  const APP_VERSION = "2.6.1";
-  const APP_RELEASED = "2026-10-23";
+  const APP_VERSION = "2.7.0";
+  const APP_RELEASED = "2026-10-26";
   const CHANGELOG = [
+    { v: "2.7.0", date: "2026-10-26", title: "News: ältere Wochen zusammengelegt", items: [
+      "Gibt es für eine Woche einen Wochenrückblick, stehen ihre Einzelmeldungen nur noch dort, sortiert nach Kategorien",
+      "Im Wochenrückblick führt ein Tipp auf eine Kategorie direkt in den passenden Tab",
+      "Alben stehen jetzt auch im Wochenrückblick",
+    ] },
     { v: "2.6.1", date: "2026-10-23", title: "Wochenrückblick hervorgehoben, Datum bei den News", items: [
       "Der Wochenrückblick hat einen gelben Rahmen, ein größeres Symbol und eine größere Schrift und nennt den Zeitraum, zum Beispiel 12. bis 18. Okt.",
       "Neben der Zeit steht jetzt das Datum, bei Meldungen von heute die Uhrzeit",
@@ -1654,7 +1661,7 @@
     const weekMap = {};
     function bucket(ts) {
       const weekKey = ccWeekMondayKey(ts);
-      if (!weekMap[weekKey]) weekMap[weekKey] = { bands: [], events: [], ideas: [], spots: [], photos: [] };
+      if (!weekMap[weekKey]) weekMap[weekKey] = { bands: [], events: [], ideas: [], spots: [], photos: [], albums: [] };
       return weekMap[weekKey];
     }
     function addTo(category, ts, label) {
@@ -1665,6 +1672,7 @@
     events.forEach((ev) => addTo("events", ev.createdAt, ev.title));
     ideas.forEach((idea) => addTo("ideas", idea.createdAt, idea.title));
     spots.forEach((sp) => addTo("spots", sp.createdAt, sp.name));
+    albums.forEach((al) => addTo("albums", al.createdAt, al.name));
     photos.forEach((ph) => { if (ph.createdAt) bucket(ph.createdAt).photos.push(ph); });
 
     const result = [];
@@ -1677,9 +1685,10 @@
       const uniqueEvents = [...new Set(groups.events)];
       const uniqueIdeas = [...new Set(groups.ideas)];
       const uniqueSpots = [...new Set(groups.spots)];
+      const uniqueAlbums = [...new Set(groups.albums)];
       const videoCount = groups.photos.filter((p) => p.type === "video").length;
       const photoCount = groups.photos.length - videoCount;
-      if (uniqueBands.length === 0 && uniqueEvents.length === 0 && uniqueIdeas.length === 0 && uniqueSpots.length === 0 && groups.photos.length === 0) return; // nichts passiert -> keine News
+      if (uniqueBands.length === 0 && uniqueEvents.length === 0 && uniqueIdeas.length === 0 && uniqueSpots.length === 0 && uniqueAlbums.length === 0 && groups.photos.length === 0) return; // nichts passiert -> keine News
 
       // Fotos und Videos als Zahl, dazu die Alben in denen sie gelandet sind
       let mediaText = "";
@@ -1693,17 +1702,20 @@
       }
 
       const lineParts = [];
-      if (uniqueBands.length) lineParts.push(`🎸 <b>Konzerte:</b> ${uniqueBands.map(escapeHtml).join(", ")}`);
-      if (uniqueEvents.length) lineParts.push(`🎫 <b>Plano:</b> ${uniqueEvents.map(escapeHtml).join(", ")}`);
-      if (uniqueSpots.length) lineParts.push(`🍻 <b>Einkehr:</b> ${uniqueSpots.map(escapeHtml).join(", ")}`);
-      if (uniqueIdeas.length) lineParts.push(`💡 <b>Ideen:</b> ${uniqueIdeas.map(escapeHtml).join(", ")}`);
-      if (mediaText) lineParts.push(`📷 <b>Fotos:</b> ${escapeHtml(mediaText)}`);
+      const goto = (tab, html) => `<span class="news-goto" data-news-goto="${tab}">${html}</span>`;
+      if (uniqueBands.length) lineParts.push(goto("concerts", `🎸 <b>Konzerte:</b> ${uniqueBands.map(escapeHtml).join(", ")}`));
+      if (uniqueEvents.length) lineParts.push(goto("timeline", `🎫 <b>Plano:</b> ${uniqueEvents.map(escapeHtml).join(", ")}`));
+      if (uniqueSpots.length) lineParts.push(goto("food", `🍻 <b>Einkehr:</b> ${uniqueSpots.map(escapeHtml).join(", ")}`));
+      if (uniqueIdeas.length) lineParts.push(goto("ideas", `💡 <b>Ideen:</b> ${uniqueIdeas.map(escapeHtml).join(", ")}`));
+      if (mediaText) lineParts.push(goto("photos", `📷 <b>Fotos:</b> ${escapeHtml(mediaText)}`));
+      if (uniqueAlbums.length) lineParts.push(goto("photos", `🖼️ <b>Alben:</b> ${uniqueAlbums.map(escapeHtml).join(", ")}`));
       const plainParts = [];
       if (uniqueBands.length) plainParts.push(`🎸 Konzerte: ${uniqueBands.join(", ")}`);
       if (uniqueEvents.length) plainParts.push(`🎫 Plano: ${uniqueEvents.join(", ")}`);
       if (uniqueSpots.length) plainParts.push(`🍻 Einkehr: ${uniqueSpots.join(", ")}`);
       if (uniqueIdeas.length) plainParts.push(`💡 Ideen: ${uniqueIdeas.join(", ")}`);
       if (mediaText) plainParts.push(`📷 Fotos: ${mediaText}`);
+      if (uniqueAlbums.length) plainParts.push(`🖼️ Alben: ${uniqueAlbums.join(", ")}`);
       const weekLabel = new Date(mondayStart).toLocaleDateString("de-DE", { day: "2-digit", month: "short" });
       const sundayDate = new Date(mondayStart + 6 * 24 * 60 * 60 * 1000);
       const fromD = new Date(mondayStart);
@@ -1716,13 +1728,16 @@
       if (uniqueEvents.length) countParts.push(`${uniqueEvents.length} Termin${uniqueEvents.length === 1 ? "" : "e"}`);
       if (uniqueSpots.length) countParts.push(`${uniqueSpots.length} Location${uniqueSpots.length === 1 ? "" : "s"}`);
       if (uniqueIdeas.length) countParts.push(`${uniqueIdeas.length} Idee${uniqueIdeas.length === 1 ? "" : "n"}`);
+      if (uniqueAlbums.length) countParts.push(`${uniqueAlbums.length} Album${uniqueAlbums.length === 1 ? "" : "en"}`);
       if (groups.photos.length) countParts.push(photoCount > 0 && videoCount > 0 ? `${photoCount} Fotos, ${videoCount} Video${videoCount === 1 ? "" : "s"}` : photoCount > 0 ? `${photoCount} Foto${photoCount === 1 ? "" : "s"}` : `${videoCount} Video${videoCount === 1 ? "" : "s"}`);
       result.push({
         ts: nextMonday,
         icon: "📰",
         html: `<b>Wochenrückblick</b> <span class="news-range">${escapeHtml(weekRange)}</span>`,
         subHtml: countParts.join(" · "),
-        detailHtml: lineParts.join("<br>"),
+        detailHtml: lineParts.join(""),
+        weekStart: mondayStart,
+        weekEnd: sundayEnd,
         tab: "news",
         isDigest: true,
         shareText: `📰 Wochenrückblick (ab ${weekLabel}):\n${plainParts.join("\n")}`,
@@ -1852,7 +1867,10 @@
       if (al.createdAt) entries.push({ ts: al.createdAt, icon: "🖼️", html: `<b>${escapeHtml(al.who)}</b> hat ein Album angelegt: <b>${escapeHtml(al.name)}</b>`, tab: "photos", targetId: `album-${al.id}`, kind: "album", who: al.who, itemHtml: `<b>${escapeHtml(al.name)}</b>` });
     });
 
-    const merged = mergeNewsByDay(entries);
+    // Gibt es für eine Woche schon einen Rückblick, stehen deren Einzelmeldungen nur noch dort, sortiert nach Kategorien
+    const digestWeeks = entries.filter((e) => e.isDigest);
+    const folded = entries.filter((e) => e.isDigest || !digestWeeks.some((w) => e.ts >= w.weekStart && e.ts <= w.weekEnd));
+    const merged = mergeNewsByDay(folded);
 
     merged.sort((a, b) => b.ts - a.ts);
     const all = merged.slice(0, 60);
@@ -1899,6 +1917,8 @@
         if (e.target.closest("[data-news-share]") || e.target.closest("a")) return;
         const entry = recent[Number(el.dataset.newsIndex)];
         if (entry && entry.isDigest) {
+          const jump = e.target.closest("[data-news-goto]");
+          if (jump) { goToTab(jump.dataset.newsGoto); return; }
           const det = el.querySelector("[data-news-detail]");
           if (det) { det.classList.toggle("hidden"); el.querySelector(".news-sub") && el.querySelector(".news-sub").classList.toggle("hidden", !det.classList.contains("hidden")); }
           return;

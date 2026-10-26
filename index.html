@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-<meta name="app-version" content="2.7.0" />
+<meta name="app-version" content="2.8.1" />
 <title>Backstage by BierAmStrand</title>
 
 <!-- App-Icon: dunkles Quadrat mit goldenem "B" -->
@@ -552,6 +552,7 @@
   .spot-badge { display: inline-block; font-size: 11px; font-weight: 600; line-height: 1.2; padding: 2px 8px; border-radius: 999px; white-space: nowrap; border: 1px solid transparent; }
   .spot-badge.newcomer { background: rgba(120,200,150,0.15); color: #8fd3a8; border-color: rgba(120,200,150,0.4); }
   .app-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 18px 10px; }
+  .cc-count { display: inline-block; margin-left: 7px; padding: 0 7px; border-radius: 999px; background: rgba(232,163,61,0.18); color: var(--amber); font-size: 12px; font-weight: 700; line-height: 1.6; }
   .app-version-box { margin: 32px 0 8px; text-align: center; font-size: 12px; color: var(--muted); }
   .app-version-box .tips-link { color: var(--muted); font-size: 12px; }
   #app-changelog { margin-top: 12px; padding: 14px 16px; border-radius: 10px; background: rgba(240,239,236,0.05); border: 1px solid rgba(240,239,236,0.12); text-align: left; }
@@ -1074,6 +1075,7 @@
               </div>
             </form>
             <div class="cc-dup-hint hidden" id="cc-dup-hint"></div>
+            <p id="cc-add-hint" class="hidden" style="font-size:13px; color:var(--muted); margin:10px 0 0;"></p>
           </div>
 
           <div style="margin:0 0 12px; display:flex; flex-wrap:wrap; gap:8px;">
@@ -1081,6 +1083,7 @@
             <button type="button" class="btn-promote hidden" id="cc-toggle-all" style="font-size:13px; padding:8px 12px;">Alle aufklappen</button>
           </div>
 
+          <p id="cc-summary" class="hidden" style="font-size:13px; color:var(--muted); margin:0 0 12px;"></p>
           <div class="cc-widgets-feed" id="cc-widgets-feed"></div>
         </div>
 
@@ -1277,9 +1280,17 @@
   // 2.0.1 für Fehlerbehebungen und Kleinigkeiten, 2.1.0 für neue Funktionen, 3.0.0 für große Umbauten.
   // Die Nummer steht zusätzlich im meta Tag app-version im Kopf der Seite, beide müssen gleich sein.
   // Geänderte Functions bekommen im Kopf ihrer Datei dieselbe Nummer, damit man auch dort den Stand erkennt.
-  const APP_VERSION = "2.7.0";
+  const APP_VERSION = "2.8.1";
   const APP_RELEASED = "2026-10-26";
   const CHANGELOG = [
+    { v: "2.8.1", date: "2026-10-26", title: "Bands ohne Termin seltener prüfen", items: [
+      "Bands ohne bekannten Termin werden nur noch alle 14 Tage neu abgefragt statt alle 7 Tage, das halbiert die Abfragen",
+    ] },
+    { v: "2.8.0", date: "2026-10-26", title: "Live: Bands ohne Termin nur im Archiv", items: [
+      "Bands ohne bekannten Termin stehen nicht mehr in der Liste, sondern nur noch im Band Archiv",
+      "Der Archiv Knopf zeigt die Zahl aller Bands, darüber steht eine Zeile mit Zahlen und einem Link ins Archiv",
+      "Im Archiv steht bei Bands ohne Termin Kein Termin, neu hinzugefügte Bands ohne Termin werden mit einem Hinweis erklärt",
+    ] },
     { v: "2.7.0", date: "2026-10-26", title: "News: ältere Wochen zusammengelegt", items: [
       "Gibt es für eine Woche einen Wochenrückblick, stehen ihre Einzelmeldungen nur noch dort, sortiert nach Kategorien",
       "Im Wochenrückblick führt ein Tipp auf eine Kategorie direkt in den passenden Tab",
@@ -4171,13 +4182,14 @@
   });
 
   // ---- Konzerte (Perplexity-KI-Radar für Hamburg) ----
-  const CC_CACHE_DAYS = 7; // Cache-Dauer für "kein Termin bekannt", danach wird automatisch neu abgefragt
+  const CC_CACHE_DAYS = 14; // Cache-Dauer für "kein Termin bekannt", danach wird automatisch neu abgefragt (Bands ohne Termin liegen nur im Archiv, deshalb seltener)
   const CC_CACHE_DAYS_FOUND = 30; // Cache-Dauer für bereits gefundene Shows/Tour-Hinweise (länger, gegen KI-Inkonsistenz)
 
   // Die frühere Chips Liste ist entfallen, alle Bands stehen im Band Archiv.
   // Der Name bleibt, damit alle bisherigen Aufrufe weiter funktionieren.
   function renderCCChips() {
     renderCCArchive();
+    ccUpdateCounts();
   }
 
   // Vergleich ohne Groß/Kleinschreibung, Umlaut Akzente und doppelte Leerzeichen
@@ -4234,6 +4246,7 @@
       return;
     }
     trackedArtists.push(val);
+    ccAddedKeys.add(val.toLowerCase());
     const cutoff = Date.now() - 120 * 24 * 60 * 60 * 1000;
     bandAddLog = (bandAddLog || []).filter((e) => e.addedAt > cutoff);
     bandAddLog.push({ artist: val, addedAt: Date.now() });
@@ -4253,7 +4266,7 @@
     if (data.hasHamburgShow && iso && iso >= today) return { text: "🗓️ " + data.date, hh: true };
     const nearest = ccParseGermanDate(data.nearestShowDate);
     if (data.isOnTour && data.nearestShowInfo && !(nearest && nearest < today)) return { text: "🚌 Auf Tour", hh: false };
-    return { text: "", hh: false };
+    return { text: "Kein Termin", hh: false };
   }
 
   function renderCCArchive() {
@@ -4299,6 +4312,7 @@
     document.getElementById("cc-main-view").classList.remove("hidden");
   }
 
+  document.getElementById("cc-summary").addEventListener("click", (e) => { if (e.target.closest("[data-cc-open-archive]")) ccOpenArchive(); });
   (function wireCCArchive() {
     const panel = document.getElementById("cc-archive-panel");
     document.getElementById("cc-archive-btn").addEventListener("click", ccOpenArchive);
@@ -4334,13 +4348,14 @@
           <p>Noch keine Bands im Radar. Fügt oben eine hinzu.</p>
         </div>`;
       ccUpdateToggleAll();
+      ccUpdateCounts();
       return;
     }
 
     const sortedArtists = [...trackedArtists].sort((a, b) => a.localeCompare(b, "de", { sensitivity: "base" }));
 
     feed.innerHTML = sortedArtists.map((artist) => `
-      <div class="cc-artist-card" id="cc-card-${ccSafeId(artist)}" data-cc-key="${escapeHtml(artist.toLowerCase())}">
+      <div class="cc-artist-card" id="cc-card-${ccSafeId(artist)}" data-cc-key="${escapeHtml(artist.toLowerCase())}" data-cc-state="pending">
         <div class="cc-card-header" role="button" tabindex="0" aria-expanded="false">
           <div class="cc-card-head-main">
             <span class="cc-card-artist">🎤 ${escapeHtml(artist)}</span>
@@ -4358,6 +4373,7 @@
     });
 
     sortedArtists.forEach((artist) => loadCCArtist(artist, false));
+    ccUpdateCounts();
   }
 
   async function loadCCArtist(artist, forceRefresh) {
@@ -4366,7 +4382,7 @@
     const cached = concertCache[key];
     const cacheAge = cached ? Date.now() - cached.timestamp : Infinity;
     // Einmal gefundene Shows/Tour-Hinweise vertrauen wir deutlich länger (30 Tage) als ein
-    // "kein Termin bekannt" (7 Tage) – live-KI-Suchen sind nicht 100% konsistent zwischen
+    // "kein Termin bekannt" (14 Tage) – live-KI-Suchen sind nicht 100% konsistent zwischen
     // Abfragen, und ein zu häufiges Neu-Fragen kann eine bereits gefundene Show sonst wieder
     // fälschlich verschwinden lassen. Ein vergangenes Datum sorgt weiter unten trotzdem dafür,
     // dass automatisch neu geprüft wird.
@@ -4390,6 +4406,8 @@
     }
 
     if (statusEl) statusEl.innerHTML = '<span class="cc-loading-spinner"></span>';
+    const loadingCard = document.getElementById(`cc-card-${ccSafeId(artist)}`);
+    if (loadingCard && loadingCard.dataset.ccState !== "none") loadingCard.dataset.ccState = "pending"; // versteckte Bands bleiben beim erneuten Prüfen versteckt
 
     try {
       const res = await fetch('/.netlify/functions/get-concerts', {
@@ -4403,6 +4421,8 @@
     } catch (err) {
       console.error("Konzert-Abfrage fehlgeschlagen für " + artist, err);
       if (statusEl) statusEl.textContent = "Fehler";
+      const errCard = document.getElementById(`cc-card-${ccSafeId(artist)}`);
+      if (errCard) { errCard.dataset.ccState = "error"; errCard.classList.remove("hidden"); ccUpdateCounts(); }
     }
   }
 
@@ -4588,8 +4608,46 @@
         });
       }
     }
+    // Zustand der Band: show (Hamburg Termin), tour (anderswo unterwegs) oder none (kein Termin bekannt).
+    // Bands ohne Termin stehen nicht mehr in der Liste, sondern nur noch im Band Archiv.
+    const bandState = showIsValid ? "show" : card.classList.contains("cc-ontour") ? "tour" : "none";
+    card.dataset.ccState = bandState;
+    card.classList.toggle("hidden", bandState === "none");
+    if (bandState === "none") ccMaybeShowAddHint(artist);
     ccApplyOpen(card, subHtml);
     ccReorderFeed();
+    ccUpdateCounts();
+  }
+
+  // ---- Übersicht: Zahl im Archiv Knopf und eine Zeile über der Liste ----
+  const ccAddedKeys = new Set(); // gerade neu hinzugefügte Bands, damit man erfährt, wo sie gelandet sind
+  let ccAddHintTimer = null;
+  function ccMaybeShowAddHint(artist) {
+    const key = artist.toLowerCase();
+    if (!ccAddedKeys.has(key)) return;
+    ccAddedKeys.delete(key);
+    const el = document.getElementById("cc-add-hint");
+    if (!el) return;
+    el.textContent = `Für „${artist}“ ist noch kein Termin bekannt. Die Band liegt im Band Archiv und taucht hier auf, sobald es einen Termin gibt.`;
+    el.classList.remove("hidden");
+    clearTimeout(ccAddHintTimer);
+    ccAddHintTimer = setTimeout(() => el.classList.add("hidden"), 12000);
+  }
+  function ccUpdateCounts() {
+    const total = trackedArtists.length;
+    const btn = document.getElementById("cc-archive-btn");
+    if (btn) btn.innerHTML = `📚 Band Archiv${total ? `<span class="cc-count">${total}</span>` : ""}`;
+    const sum = document.getElementById("cc-summary");
+    if (!sum) return;
+    const cards = Array.from(document.querySelectorAll("#cc-widgets-feed .cc-artist-card"));
+    const n = (st) => cards.filter((c) => c.dataset.ccState === st).length;
+    const active = n("show") + n("tour"), none = n("none"), pending = n("pending");
+    const parts = [];
+    if (active) parts.push(`${active} Band${active === 1 ? "" : "s"} mit Termin oder Tour`);
+    if (pending) parts.push(`${pending} werden geprüft`);
+    if (none) parts.push(`<button type="button" class="tips-link" data-cc-open-archive style="font-size:inherit;">${none} ohne Termin im Archiv</button>`);
+    sum.innerHTML = parts.join(" · ");
+    sum.classList.toggle("hidden", parts.length === 0);
   }
 
   function ccReorderFeed() {

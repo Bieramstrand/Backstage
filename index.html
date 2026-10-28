@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-<meta name="app-version" content="2.8.1" />
+<meta name="app-version" content="2.10.0" />
 <title>Backstage by BierAmStrand</title>
 
 <!-- App-Icon: dunkles Quadrat mit goldenem "B" -->
@@ -552,6 +552,7 @@
   .spot-badge { display: inline-block; font-size: 11px; font-weight: 600; line-height: 1.2; padding: 2px 8px; border-radius: 999px; white-space: nowrap; border: 1px solid transparent; }
   .spot-badge.newcomer { background: rgba(120,200,150,0.15); color: #8fd3a8; border-color: rgba(120,200,150,0.4); }
   .app-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 18px 10px; }
+  .cc-plano-mark { margin-left: 8px; font-size: 16px; }
   .cc-count { display: inline-block; margin-left: 7px; padding: 0 7px; border-radius: 999px; background: rgba(232,163,61,0.18); color: var(--amber); font-size: 12px; font-weight: 700; line-height: 1.6; }
   .app-version-box { margin: 32px 0 8px; text-align: center; font-size: 12px; color: var(--muted); }
   .app-version-box .tips-link { color: var(--muted); font-size: 12px; }
@@ -713,6 +714,19 @@
             <div id="admin-apps-grid"></div>
             <div style="text-align:right; margin-top:12px;"><button type="button" class="tips-link" id="admin-apps-lock" style="font-size:12px; color:var(--muted);">Sperren</button></div>
           </div>
+        </div>
+        <div id="admin-tickets" style="margin-bottom:24px;">
+          <h3 style="font-size:12px; font-weight:700; letter-spacing:0.08em; text-transform:uppercase; color:var(--muted); margin:0 0 10px;">Ticket Passwort</h3>
+          <form id="admin-tickets-form" style="padding:14px; border-radius:10px; background:rgba(240,239,236,0.06); border:1px solid rgba(240,239,236,0.14);" autocomplete="off">
+            <p id="admin-tickets-status" style="font-size:13px; color:var(--muted); margin:0 0 10px;"></p>
+            <input type="password" id="admin-tickets-old" placeholder="Aktuelles Passwort" autocomplete="current-password" class="hidden" style="width:100%; margin-bottom:8px;" />
+            <input type="password" id="admin-tickets-new" placeholder="Neues Passwort (mindestens 4 Zeichen)" autocomplete="new-password" style="width:100%; margin-bottom:8px;" />
+            <div style="display:flex; gap:8px; flex-wrap:wrap;">
+              <button type="submit" class="btn-promote" id="admin-tickets-save">Festlegen</button>
+              <button type="button" class="btn-promote hidden" id="admin-tickets-remove">Schutz ausschalten</button>
+            </div>
+            <p class="error-text hidden" id="admin-tickets-error" style="margin:10px 0 0;"></p>
+          </form>
         </div>
         <div id="admin-visit-stats" style="margin-bottom:20px; padding:16px; border-radius:10px; background:rgba(240,239,236,0.06); border:1px solid rgba(240,239,236,0.14);"></div>
         <textarea id="admin-notes-textarea" rows="20" placeholder="Ideen, Notizen, To-dos für die Website…" style="width:100%; padding:14px; border-radius:8px; background:rgba(240,239,236,0.06); border:1px solid rgba(240,239,236,0.18); color:var(--paper); font-family:inherit; font-size:16px; resize:vertical; box-sizing:border-box;"></textarea>
@@ -1156,6 +1170,12 @@
     const d = new Date(iso + "T00:00:00");
     return d.toLocaleDateString("de-DE", { day: "2-digit", month: "short", year: "numeric" });
   }
+  // Mit Wochentag: Mi, 11. Nov. 2026
+  function fmtDateDay(iso) {
+    if (!iso) return "";
+    const d = new Date(iso + "T00:00:00");
+    return `${["So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"][d.getDay()]}, ${fmtDate(iso)}`;
+  }
   function escapeHtml(str) {
     return String(str || "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   }
@@ -1261,6 +1281,7 @@
   let concertCache = {};
   let adminNotes = "";
   let bandAddLog = [];
+  let ticketLock = null; // Sichtschutz für Tickets: {salt, hash, at}, nur der Hash des Passworts wird gespeichert
   let closedTips = []; // von euch gemeldete Tipps, die es nicht mehr gibt: {name, street, zip, at}
   let visitLog = [];
   let newsExpanded = false;
@@ -1280,9 +1301,21 @@
   // 2.0.1 für Fehlerbehebungen und Kleinigkeiten, 2.1.0 für neue Funktionen, 3.0.0 für große Umbauten.
   // Die Nummer steht zusätzlich im meta Tag app-version im Kopf der Seite, beide müssen gleich sein.
   // Geänderte Functions bekommen im Kopf ihrer Datei dieselbe Nummer, damit man auch dort den Stand erkennt.
-  const APP_VERSION = "2.8.1";
-  const APP_RELEASED = "2026-10-26";
+  const APP_VERSION = "2.10.0";
+  const APP_RELEASED = "2026-10-28";
   const CHANGELOG = [
+    { v: "2.10.0", date: "2026-10-28", title: "Live: Konzerte aus Plano mit Ticket Symbol", items: [
+      "Konzerte, die schon in Plano stehen, haben in der Live Liste ein 🎫 hinter dem Bandnamen",
+      "Der Knopf Plano in der aufgeklappten Karte heißt dann In Plano und springt zum Eintrag, statt ein Doppel anzulegen",
+    ] },
+    { v: "2.9.0", date: "2026-10-28", title: "Ticket Passwort", items: [
+      "Tickets in Plano lassen sich mit einem Passwort verbergen, das im Admin Bereich festgelegt wird",
+      "Nach der Eingabe sind die Tickets 15 Minuten sichtbar und lassen sich von Hand wieder sperren",
+      "Das ist ein Sichtschutz, die Dateien liegen weiter in Firebase Storage",
+    ] },
+    { v: "2.8.2", date: "2026-10-28", title: "Wochentag bei Terminen", items: [
+      "In Plano steht vor dem Datum der Wochentag, zum Beispiel Mi, 11. Nov. 2026, auch im Popup der Karte und im Hinweis zum Live Datum",
+    ] },
     { v: "2.8.1", date: "2026-10-26", title: "Bands ohne Termin seltener prüfen", items: [
       "Bands ohne bekannten Termin werden nur noch alle 14 Tage neu abgefragt statt alle 7 Tage, das halbiert die Abfragen",
     ] },
@@ -1479,6 +1512,7 @@
       document.getElementById("admin-notes-view").classList.remove("hidden");
       document.getElementById("admin-notes-textarea").value = adminNotes;
       renderVisitStats();
+      renderAdminTickets();
       openMyAppsIfRemembered();
     } else {
       errEl.textContent = "Falsches Passwort.";
@@ -1559,6 +1593,48 @@
     appsEl.pw().value = "";
   });
   document.getElementById("admin-apps-lock").addEventListener("click", () => lockMyApps(true));
+
+  // ---- Ticket Passwort im Admin Bereich ----
+  function renderAdminTickets() {
+    const has = !!(ticketLock && ticketLock.hash);
+    document.getElementById("admin-tickets-status").textContent = has
+      ? "Der Sichtschutz ist an. Tickets in Plano erscheinen erst nach Eingabe des Passworts. Zum Ändern oder Ausschalten brauchst du das aktuelle Passwort. Vergessen lässt es sich nicht zurücksetzen."
+      : "Noch kein Passwort. Wenn du eines festlegst, erscheinen die Tickets in Plano erst nach Eingabe. Das ist ein Sichtschutz, kein echter Schutz gegen Leute, die sich mit der Datenbank auskennen.";
+    document.getElementById("admin-tickets-old").classList.toggle("hidden", !has);
+    document.getElementById("admin-tickets-remove").classList.toggle("hidden", !has);
+    document.getElementById("admin-tickets-save").textContent = has ? "Ändern" : "Festlegen";
+    document.getElementById("admin-tickets-new").placeholder = has ? "Neues Passwort (mindestens 4 Zeichen)" : "Passwort festlegen (mindestens 4 Zeichen)";
+  }
+  function adminTicketsMessage(msg, ok) {
+    const el = document.getElementById("admin-tickets-error");
+    el.textContent = msg;
+    el.style.color = ok ? "#7fd6a0" : "";
+    el.classList.toggle("hidden", !msg);
+  }
+  document.getElementById("admin-tickets-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const oldPw = document.getElementById("admin-tickets-old").value;
+    const newPw = document.getElementById("admin-tickets-new").value;
+    try {
+      await setTicketPassword(newPw, oldPw);
+      document.getElementById("admin-tickets-old").value = "";
+      document.getElementById("admin-tickets-new").value = "";
+      adminTicketsMessage("Gespeichert. Das Passwort gilt ab sofort für alle.", true);
+    } catch (ex) {
+      adminTicketsMessage(ex.message || "Das hat nicht geklappt.", false);
+    }
+    renderAdminTickets();
+  });
+  document.getElementById("admin-tickets-remove").addEventListener("click", async () => {
+    try {
+      await removeTicketPassword(document.getElementById("admin-tickets-old").value);
+      document.getElementById("admin-tickets-old").value = "";
+      adminTicketsMessage("Der Sichtschutz ist aus, die Tickets sind wieder frei sichtbar.", true);
+    } catch (ex) {
+      adminTicketsMessage(ex.message || "Das hat nicht geklappt.", false);
+    }
+    renderAdminTickets();
+  });
   function openMyAppsIfRemembered() {
     let pw = "";
     try { pw = sessionStorage.getItem(APPS_PW_KEY) || ""; } catch { pw = ""; }
@@ -1580,7 +1656,7 @@
   function persist() {
     renderNews();
     if (!docRef) return;
-    docRef.set({ events, photos, playlists, ideas, albums, trackedArtists, concertCache, adminNotes, spots, bandAddLog, closedTips }, { merge: true }).catch((e) => console.error("Speichern fehlgeschlagen", e));
+    docRef.set({ events, photos, playlists, ideas, albums, trackedArtists, concertCache, adminNotes, spots, bandAddLog, closedTips, ticketLock }, { merge: true }).catch((e) => console.error("Speichern fehlgeschlagen", e));
   }
 
   function renderVisitStats() {
@@ -2062,6 +2138,55 @@
     if (didCleanup) persist();
   }
 
+  // ---- Ticket Passwort (Sichtschutz) ----
+  // Gespeichert wird nur ein Hash mit Salt. Das verbirgt die Tickets vor zufälligen Blicken. Es ist kein echter Schutz gegen jemanden,
+  // der die Datenbank selbst ausliest, denn die Dateien liegen weiter in Firebase Storage.
+  const TICKET_UNLOCK_KEY = "backstage_tickets_until";
+  const TICKET_UNLOCK_MINUTES = 15;
+  let ticketRelockTimer = null;
+  function ticketsLockedNow() {
+    if (!ticketLock || !ticketLock.hash) return false;
+    try { return !(Number(sessionStorage.getItem(TICKET_UNLOCK_KEY) || 0) > Date.now()); } catch { return true; }
+  }
+  async function hashTicketPassword(pw, salt) {
+    if (!window.crypto || !window.crypto.subtle) throw new Error("Das Passwort braucht eine sichere Verbindung (https).");
+    const buf = await window.crypto.subtle.digest("SHA-256", new TextEncoder().encode(`${salt}:${pw}`));
+    return Array.from(new Uint8Array(buf)).map((b) => b.toString(16).padStart(2, "0")).join("");
+  }
+  async function checkTicketPassword(pw) {
+    return !!ticketLock && !!ticketLock.hash && (await hashTicketPassword(pw, ticketLock.salt)) === ticketLock.hash;
+  }
+  function unlockTickets() {
+    const until = Date.now() + TICKET_UNLOCK_MINUTES * 60000;
+    try { sessionStorage.setItem(TICKET_UNLOCK_KEY, String(until)); } catch { /* ohne Speicher gilt die Freigabe nur bis zum Neuzeichnen nicht, dann muss man erneut tippen */ }
+    clearTimeout(ticketRelockTimer);
+    ticketRelockTimer = setTimeout(() => renderEvents(), TICKET_UNLOCK_MINUTES * 60000 + 500); // nach 15 Minuten sperrt es sich von selbst
+    renderEvents();
+  }
+  function lockTickets() {
+    try { sessionStorage.removeItem(TICKET_UNLOCK_KEY); } catch { /* egal */ }
+    clearTimeout(ticketRelockTimer);
+    renderEvents();
+  }
+  async function setTicketPassword(newPw, oldPw) {
+    if (ticketLock && !(await checkTicketPassword(oldPw || ""))) throw new Error("Das aktuelle Passwort stimmt nicht.");
+    if (!newPw || newPw.length < 4) throw new Error("Das neue Passwort braucht mindestens 4 Zeichen.");
+    const saltBytes = new Uint8Array(16);
+    window.crypto.getRandomValues(saltBytes);
+    const salt = Array.from(saltBytes).map((b) => b.toString(16).padStart(2, "0")).join("");
+    ticketLock = { salt, hash: await hashTicketPassword(newPw, salt), at: Date.now() };
+    persist();
+    unlockTickets();
+  }
+  async function removeTicketPassword(oldPw) {
+    if (!ticketLock) return;
+    if (!(await checkTicketPassword(oldPw || ""))) throw new Error("Das aktuelle Passwort stimmt nicht.");
+    ticketLock = null;
+    try { sessionStorage.removeItem(TICKET_UNLOCK_KEY); } catch { /* egal */ }
+    persist();
+    renderEvents();
+  }
+
   // ---- Vorbands für Konzerte in Plano: erst aus dem Live Speicher (kostenlos), sonst per Suche ----
   // Kommt ein Konzert über eine Idee nach Plano, stehen die Vorbands nur als Text in der Notiz ("Gruenspan Hamburg · Vorbands: A, B, C").
   // Daraus wird das Feld Vorbands, damit Plano die Spotify Links zeigt. Der Rest der Notiz bleibt stehen.
@@ -2156,7 +2281,7 @@
   }
   function liveDateHintHtml(ev, dim) {
     if (dim || ev.type !== "Konzert" || !ev.liveDate || ev.liveDate === ev.date || ev.liveDate === ev.liveDateOk) return "";
-    return `<div class="cc-card-info" style="margin:6px 0;">⚠️ In Live steht dieses Konzert am ${escapeHtml(fmtDate(ev.liveDate))}. <button type="button" class="tips-link" data-take-live-date="${escapeHtml(ev.id)}" style="font-size:13px;">Datum übernehmen</button> · <button type="button" class="tips-link" data-keep-date="${escapeHtml(ev.id)}" style="font-size:13px; color:var(--muted);">Bleibt so</button></div>`;
+    return `<div class="cc-card-info" style="margin:6px 0;">⚠️ In Live steht dieses Konzert am ${escapeHtml(fmtDateDay(ev.liveDate))}. <button type="button" class="tips-link" data-take-live-date="${escapeHtml(ev.id)}" style="font-size:13px;">Datum übernehmen</button> · <button type="button" class="tips-link" data-keep-date="${escapeHtml(ev.id)}" style="font-size:13px; color:var(--muted);">Bleibt so</button></div>`;
   }
   function supportSearchHtml(ev, dim) {
     if (ev.type !== "Konzert" || ev.supportActs || dim) return "";
@@ -2165,6 +2290,34 @@
     const checked = ev.supportCheckedAt ? `<span style="color:var(--muted); font-size:12px;">Keine Vorbands gefunden (Stand ${escapeHtml(new Date(ev.supportCheckedAt).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" }))}). </span>` : "";
     return `<div style="margin:6px 0;">${checked}<button type="button" class="tips-link" data-find-support="${escapeHtml(ev.id)}" style="font-size:13px;">🔎 ${ev.supportCheckedAt ? "Nochmal suchen" : "Vorbands suchen"}</button></div>`;
   }
+  ["upcoming-list", "past-list"].forEach((listId) => {
+    const list = document.getElementById(listId);
+    list.addEventListener("click", (e) => {
+      const open = e.target.closest("[data-unlock-tickets]");
+      if (open) {
+        const id = open.dataset.unlockTickets;
+        const form = list.querySelector(`[data-unlock-form="${CSS.escape(id)}"]`);
+        if (form) { form.classList.remove("hidden"); form.querySelector("input").focus(); open.classList.add("hidden"); }
+        return;
+      }
+      if (e.target.closest("[data-lock-tickets]")) lockTickets();
+    });
+    list.addEventListener("submit", async (e) => {
+      const form = e.target.closest("[data-unlock-form]");
+      if (!form) return;
+      e.preventDefault();
+      const err = list.querySelector(`[data-unlock-error="${CSS.escape(form.dataset.unlockForm)}"]`);
+      const input = form.querySelector("input");
+      try {
+        if (await checkTicketPassword(input.value)) { unlockTickets(); return; }
+        err.textContent = "Das Passwort stimmt nicht.";
+      } catch (ex) {
+        err.textContent = ex.message || "Das hat nicht geklappt.";
+      }
+      err.classList.remove("hidden");
+      input.value = "";
+    });
+  });
   document.getElementById("upcoming-list").addEventListener("click", (e) => {
     const b = e.target.closest("[data-find-support]");
     if (b) { findSupportForEvent(b.dataset.findSupport, true); return; }
@@ -2197,10 +2350,21 @@
       ? `<p class="empty-text">${dim ? "Noch keine vergangenen Termine." : "Noch nichts geplant."}</p>`
       : list.map((ev) => {
         const attachments = ev.files || (ev.fileUrl ? [{ id: "legacy", url: ev.fileUrl, name: ev.fileName }] : []);
-        const filesHtml = attachments.length > 0
+        const baseFilesHtml = attachments.length > 0
           ? `<div class="event-meta" style="margin-top:6px; flex-direction:column; align-items:flex-start; gap:8px;">${attachments.map((f) => `<span style="display:flex; flex-direction:column;"><span>📎 <a href="${escapeHtml(f.url)}" target="_blank" rel="noreferrer" style="text-decoration:underline; color:var(--paper);">${escapeHtml(f.name || "Datei")}</a> <button class="icon-btn" data-remove-file="${ev.id}" data-file-id="${f.id}" title="Datei entfernen" style="padding:4px; font-size:14px;">✕</button></span>${f.uploadedBy ? `<span style="font-size:12px; margin-left:22px;">hochgeladen von ${escapeHtml(f.uploadedBy)}</span>` : ""}</span>`).join("")}</div>`
           : "";
-        const dateLabel = ev.dateEnd && ev.dateEnd > ev.date ? `${fmtDate(ev.date)} – ${fmtDate(ev.dateEnd)}` : fmtDate(ev.date);
+        const ticketsLocked = ticketsLockedNow();
+        const nTickets = attachments.length;
+        const filesHtml = nTickets === 0 ? ""
+          : ticketsLocked
+            ? `<div class="event-meta" style="margin-top:6px;"><span>🔒 ${nTickets} Ticket${nTickets === 1 ? "" : "s"} gesperrt</span> <button type="button" class="tips-link" data-unlock-tickets="${ev.id}" style="font-size:13px;">Passwort eingeben</button></div>
+              <form class="ticket-unlock-form hidden" data-unlock-form="${ev.id}" style="display:flex; gap:8px; margin-top:8px;" autocomplete="on">
+                <input type="password" autocomplete="current-password" placeholder="Passwort" style="flex:1; min-width:0;" />
+                <button type="submit" class="btn-promote">Öffnen</button>
+              </form>
+              <p class="error-text hidden" data-unlock-error="${ev.id}" style="margin:6px 0 0;"></p>`
+            : baseFilesHtml + (ticketLock ? `<div style="margin-top:6px;"><button type="button" class="tips-link" data-lock-tickets style="font-size:12px; color:var(--muted);">🔒 Tickets wieder sperren</button></div>` : "");
+        const dateLabel = ev.dateEnd && ev.dateEnd > ev.date ? `${fmtDateDay(ev.date)} – ${fmtDateDay(ev.dateEnd)}` : fmtDateDay(ev.date);
         return `
         <div class="ticket event-card ${dim ? "dim" : ""}" id="event-${ev.id}">
           <div class="inner" style="flex-direction:column; align-items:stretch;">
@@ -2252,7 +2416,7 @@
       b.addEventListener("click", async () => {
         const ev = events.find((x) => x.id === b.dataset.shareEvent);
         if (!ev) return;
-        const dateLabel = ev.dateEnd && ev.dateEnd > ev.date ? `${fmtDate(ev.date)} – ${fmtDate(ev.dateEnd)}` : fmtDate(ev.date);
+        const dateLabel = ev.dateEnd && ev.dateEnd > ev.date ? `${fmtDateDay(ev.date)} – ${fmtDateDay(ev.dateEnd)}` : fmtDateDay(ev.date);
         const lines = [`🎫 ${ev.title}`, `📅 ${dateLabel}${ev.time ? ` · ${ev.time} Uhr` : ""}`];
         if (ev.location) lines.push(`📍 ${ev.location}`);
         if (ev.note) lines.push(ev.note);
@@ -2323,6 +2487,7 @@
         document.getElementById("ev-title").scrollIntoView({ behavior: "smooth", block: "center" });
       });
     });
+    ccUpdatePlanoMarks(); // 🎫 in der Live Liste aktuell halten
     // Orte neuer oder geänderter Konzerte suchen und die Karte in Einkehr aktuell halten
     setTimeout(() => {
       refreshNearbyData(); renderSpotsMap(true);
@@ -3479,7 +3644,7 @@
     return upcomingConcertsWithLocation().filter((ev) => typeof ev.lat === "number" && typeof ev.lng === "number");
   }
   function concertPopupHtml(ev) {
-    const when = [fmtDate(ev.date) + (ev.dateEnd && ev.dateEnd > ev.date ? " bis " + fmtDate(ev.dateEnd) : ""), ev.time].filter(Boolean).join(", ");
+    const when = [fmtDateDay(ev.date) + (ev.dateEnd && ev.dateEnd > ev.date ? " bis " + fmtDateDay(ev.dateEnd) : ""), ev.time].filter(Boolean).join(", ");
     return `<b>${escapeHtml(ev.title)}</b> 🎸<br>🗓️ ${escapeHtml(when)}<br>📍 ${escapeHtml(ev.location)}${ev.street && !addressInText(ev.location, ev.street) ? "<br>" + escapeHtml([ev.street, [ev.zip, ev.city].filter(Boolean).join(" ")].filter(Boolean).join(", ")) : ""}<br><a href="#" data-map-event="${escapeHtml(ev.id)}">Im Plano öffnen</a>`;
   }
 
@@ -4563,7 +4728,10 @@
       const eventBtn = expandedEl.querySelector("[data-cc-to-event]");
       const ideaBtn = expandedEl.querySelector("[data-cc-to-idea]");
       const shareBtn = expandedEl.querySelector("[data-cc-share]");
-      if (eventBtn) eventBtn.addEventListener("click", () => ccQuickAdd("event", artist, data));
+      if (eventBtn) eventBtn.addEventListener("click", () => {
+        const inPlano = planoEventForBand(artist, data);
+        if (inPlano) ccJumpToPlanoEvent(inPlano.id); else ccQuickAdd("event", artist, data);
+      });
       if (ideaBtn) ideaBtn.addEventListener("click", () => ccQuickAdd("idea", artist, data));
       if (shareBtn) shareBtn.addEventListener("click", () => ccShareShow(artist, data, ticketUrl));
       card.classList.remove("cc-ontour");
@@ -4615,8 +4783,49 @@
     card.classList.toggle("hidden", bandState === "none");
     if (bandState === "none") ccMaybeShowAddHint(artist);
     ccApplyOpen(card, subHtml);
+    ccApplyPlanoMark(card);
     ccReorderFeed();
     ccUpdateCounts();
+  }
+
+  // ---- Konzerte, die schon in Plano stehen, bekommen ein 🎫 ----
+  // Gleiche Band im Titel und gleiches Datum, oder gleicher Ort (dann ist das Datum in Plano vermutlich anders eingetragen).
+  function planoEventForBand(artist, data) {
+    if (!data || !data.hasHamburgShow) return null;
+    const n = normText(artist);
+    if (!n) return null;
+    const iso = ccParseGermanDate(data.date);
+    // Der Titel in Plano darf länger sein (Revival Tour Chuck Ragan) oder kürzer (Frank Turner gegen Frank Turner & The Sleeping Souls)
+    const titleMatches = (title) => {
+      const tt = normText(title);
+      return !!tt && ((" " + tt + " ").includes(" " + n + " ") || (tt.length >= 5 && (" " + n + " ").includes(" " + tt + " ")));
+    };
+    return events.find((ev) => ev.type === "Konzert" && ev.date
+      && titleMatches(ev.title)
+      && (!iso || ev.date === iso || venueMatches(data.location, ev.location))) || null;
+  }
+  function ccJumpToPlanoEvent(id) {
+    goToTab("timeline");
+    setTimeout(() => { const el = document.getElementById("event-" + id); if (el) el.scrollIntoView({ behavior: "smooth", block: "center" }); }, 60);
+  }
+  function ccApplyPlanoMark(card) {
+    const key = card.dataset.ccKey;
+    const cached = concertCache[key];
+    const ev = card.dataset.ccState === "show" && cached ? planoEventForBand(key, cached.data) : null;
+    const nameEl = card.querySelector(".cc-card-artist");
+    if (nameEl) {
+      let mark = nameEl.querySelector(".cc-plano-mark");
+      if (ev && !mark) { mark = document.createElement("span"); mark.className = "cc-plano-mark"; mark.textContent = "🎫"; nameEl.appendChild(mark); }
+      if (mark) {
+        mark.classList.toggle("hidden", !ev);
+        if (ev) mark.title = ev.date === ccParseGermanDate(cached.data.date) ? "Schon in Plano" : `Schon in Plano, dort steht ${fmtDateDay(ev.date)}`;
+      }
+    }
+    const btn = card.querySelector("[data-cc-to-event]");
+    if (btn) btn.textContent = ev ? "✅ In Plano" : "🎫 Plano";
+  }
+  function ccUpdatePlanoMarks() {
+    document.querySelectorAll("#cc-widgets-feed .cc-artist-card").forEach((c) => ccApplyPlanoMark(c));
   }
 
   // ---- Übersicht: Zahl im Archiv Knopf und eine Zeile über der Liste ----
@@ -4745,6 +4954,7 @@
         adminNotes = data.adminNotes || "";
         bandAddLog = data.bandAddLog || [];
         closedTips = data.closedTips || [];
+        ticketLock = data.ticketLock || null;
         visitLog = data.visitLog || [];
         spots = data.spots || [];
         renderAll();

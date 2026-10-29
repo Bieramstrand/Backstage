@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-<meta name="app-version" content="2.10.0" />
+<meta name="app-version" content="2.11.0" />
 <title>Backstage by BierAmStrand</title>
 
 <!-- App-Icon: dunkles Quadrat mit goldenem "B" -->
@@ -1301,9 +1301,15 @@
   // 2.0.1 für Fehlerbehebungen und Kleinigkeiten, 2.1.0 für neue Funktionen, 3.0.0 für große Umbauten.
   // Die Nummer steht zusätzlich im meta Tag app-version im Kopf der Seite, beide müssen gleich sein.
   // Geänderte Functions bekommen im Kopf ihrer Datei dieselbe Nummer, damit man auch dort den Stand erkennt.
-  const APP_VERSION = "2.10.0";
+  const APP_VERSION = "2.11.0";
   const APP_RELEASED = "2026-10-28";
   const CHANGELOG = [
+    { v: "2.11.0", date: "2026-10-28", title: "Einkehr in der Nähe: 1 Bar und 2 Essen", items: [
+      "Bei Konzerten in Plano stehen jetzt immer eine Bar und zwei Läden mit Essen, ausgewählt nach Bewertung, langer Öffnung am Konzerttag und kurzem Weg",
+      "Läden, die am Konzerttag geschlossen haben, kommen nur noch zuletzt",
+      "Mehrere Konzerte am selben Ort bekommen nach Möglichkeit verschiedene Vorschläge",
+      "Die Überschrift heißt jetzt Einkehr in der Nähe",
+    ] },
     { v: "2.10.0", date: "2026-10-28", title: "Live: Konzerte aus Plano mit Ticket Symbol", items: [
       "Konzerte, die schon in Plano stehen, haben in der Live Liste ein 🎫 hinter dem Bandnamen",
       "Der Knopf Plano in der aufgeklappten Karte heißt dann In Plano und springt zum Eintrag, statt ein Doppel anzulegen",
@@ -3604,23 +3610,67 @@
     fillNearby();
   }
 
-  function fillNearby() {
-    document.querySelectorAll("[data-nearby-for]").forEach((el) => {
-      const ev = events.find((x) => x.id === el.dataset.nearbyFor);
-      const hide = () => { el.innerHTML = ""; el.classList.add("hidden"); };
-      if (!ev || typeof ev.lat !== "number" || typeof ev.lng !== "number") return hide();
-      const near = spots
+  // Wie viele Minuten hat eine Location am Konzerttag im Abendfenster 15:00 bis 02:00 geöffnet? null = Zeiten für den Tag unbekannt
+  function eveningOpenMinutes(sp, iso) {
+    if (!sp.hours || !iso) return null;
+    const d = new Date(iso + "T00:00:00");
+    if (isNaN(d)) return null;
+    const key = HOURS_KEYS[d.getDay()];
+    if (!dayKnown(sp.hours, key)) return null;
+    const FROM = 15 * 60, TO = 26 * 60;
+    return parseDayWindows(sp.hours[key]).reduce((sum, w) => sum + Math.max(0, Math.min(w.end, TO) - Math.max(w.start, FROM)), 0);
+  }
+  // Punktzahl einer Location für ein Konzert: gute Bewertung, lange Öffnung am Konzerttag, kurzer Weg. Zu am Konzerttag bekannt: nach hinten.
+  function nearbyScore(sp, d, iso) {
+    const mins = eveningOpenMinutes(sp, iso);
+    const hours = mins === null ? 3 : mins / 60; // unbekannte Zeiten zählen mittel, damit sie nicht grundlos verschwinden
+    const closedThatDay = mins === 0;
+    return (sp.rating || 0) * 2 + Math.min(hours, 11) * 0.7 + (1 - Math.min(d, NEARBY_RADIUS_M) / NEARBY_RADIUS_M) * 2 - (closedThatDay ? 100 : 0);
+  }
+  // Pro Konzert 2 Locations mit Essen und 1 mit Drinks (Bar), aus dem Umkreis. Fehlt eine Sorte, rücken die besten der anderen nach, höchstens 3.
+  // Mehrere Konzerte am selben Ort bekommen nach Möglichkeit verschiedene Vorschläge: die Konzerte werden nach Datum abgearbeitet, schon vergebene Läden kommen zuletzt.
+  function computeNearbyPicks() {
+    const picks = new Map();
+    const usedByVenue = new Map();
+    const concerts = upcomingConcertsWithLocation()
+      .filter((ev) => typeof ev.lat === "number" && typeof ev.lng === "number")
+      .sort((a, b) => (a.date || "").localeCompare(b.date || "") || String(a.id).localeCompare(String(b.id)));
+    concerts.forEach((ev) => {
+      const venueKey = `${ev.lat.toFixed(3)},${ev.lng.toFixed(3)}`;
+      const used = usedByVenue.get(venueKey) || new Set();
+      const cands = spots
         .filter((sp) => !sp.closed && typeof sp.lat === "number" && typeof sp.lng === "number")
         .map((sp) => ({ sp, d: distanceM(ev.lat, ev.lng, sp.lat, sp.lng) }))
         .filter((x) => x.d <= NEARBY_RADIUS_M)
-        .sort((a, b) => (b.sp.rating || 0) - (a.sp.rating || 0) || a.d - b.d)
-        .slice(0, NEARBY_MAX);
-      if (near.length === 0) return hide();
+        .map((x) => ({ ...x, score: nearbyScore(x.sp, x.d, ev.date), fresh: !used.has(x.sp.id), type: SPOT_DRINK_TYPES.includes(x.sp.type || "Restaurant") ? "drink" : SPOT_FOOD_TYPES.includes(x.sp.type || "Restaurant") ? "food" : "other" }))
+        .filter((x) => x.type !== "other")
+        .sort((a, b) => (b.fresh - a.fresh) || (b.score - a.score) || a.d - b.d);
+      const food = cands.filter((x) => x.type === "food");
+      const drinks = cands.filter((x) => x.type === "drink");
+      const chosen = [...food.slice(0, 2), ...drinks.slice(0, 1)];
+      // fehlt eine Sorte, mit den besten der anderen auffüllen
+      const rest = cands.filter((x) => !chosen.includes(x));
+      while (chosen.length < NEARBY_MAX && rest.length) chosen.push(rest.shift());
+      // Anzeige: erst Essen, dann Drinks, jeweils die beste zuerst
+      chosen.sort((a, b) => (a.type === "drink") - (b.type === "drink") || (b.fresh - a.fresh) || (b.score - a.score));
+      chosen.forEach((x) => used.add(x.sp.id));
+      usedByVenue.set(venueKey, used);
+      picks.set(ev.id, chosen);
+    });
+    return picks;
+  }
+  function fillNearby() {
+    const picks = computeNearbyPicks();
+    document.querySelectorAll("[data-nearby-for]").forEach((el) => {
+      const ev = events.find((x) => x.id === el.dataset.nearbyFor);
+      const hide = () => { el.innerHTML = ""; el.classList.add("hidden"); };
+      const near = ev ? picks.get(ev.id) : null;
+      if (!ev || !near || near.length === 0) return hide();
       el.classList.remove("hidden");
-      el.innerHTML = `<div class="nearby-title">🍽️ ESSEN IN DER NÄHE</div>` + near.map(({ sp, d }) => {
+      el.innerHTML = `<div class="nearby-title">🍻 EINKEHR IN DER NÄHE</div>` + near.map(({ sp, d }) => {
         const url = "https://www.google.com/maps/search/?api=1&query=" + encodeURIComponent([sp.name, sp.street, sp.zip, sp.city].filter(Boolean).join(" "));
         const meta = [sp.type || "Restaurant", sp.rating ? "★".repeat(sp.rating) : "", "ca. " + fmtDistance(d), hoursOnDate(sp, ev.date)].filter(Boolean).join(" · ");
-        return `<div class="nearby-row"><a href="${escapeHtml(url)}" target="_blank" rel="noreferrer">${escapeHtml(sp.name)}</a> <span class="nearby-meta">${escapeHtml(meta)}</span></div>`;
+        return `<div class="nearby-row">${escapeHtml(spotEmoji(sp))} <a href="${escapeHtml(url)}" target="_blank" rel="noreferrer">${escapeHtml(sp.name)}</a> <span class="nearby-meta">${escapeHtml(meta)}</span></div>`;
       }).join("");
     });
   }

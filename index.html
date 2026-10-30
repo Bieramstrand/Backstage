@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-<meta name="app-version" content="2.11.0" />
+<meta name="app-version" content="2.15.0" />
 <title>Backstage by BierAmStrand</title>
 
 <!-- App-Icon: dunkles Quadrat mit goldenem "B" -->
@@ -523,6 +523,10 @@
     color: var(--paper); padding: 8px 14px; border-radius: 6px; font-size: 13px; font-weight: 600; text-decoration: none;
   }
   .cc-ticket-btn:hover { background: var(--amber); color: var(--bg); }
+  .cc-demand-line { margin-top: 5px; }
+  .cc-demand { display: inline-block; padding: 2px 9px; border-radius: 999px; font-size: 11px; font-weight: 800; letter-spacing: 0.03em; text-transform: none; }
+  .cc-demand-sold { background: rgba(224,122,107,0.18); color: #ff8a6b; border: 1px solid rgba(224,122,107,0.5); }
+  .cc-demand-few, .cc-demand-hot { background: rgba(232,163,61,0.18); color: var(--amber); border: 1px solid rgba(232,163,61,0.55); }
   .cc-ticket-warning { font-size: 12px; font-weight: 700; color: #ff8a6b; margin-bottom: 4px; }
   .cc-support-list { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 4px; }
   .cc-support-chip {
@@ -568,6 +572,7 @@
   .app-tile .app-name { font-size: 11px; font-weight: 700; text-align: center; line-height: 1.2; overflow-wrap: anywhere; }
   .app-tile:active .app-icon { transform: scale(0.94); }
   .beta-tag { display: inline-block; margin-left: 6px; padding: 1px 6px; border: 1px solid rgba(232,163,61,0.55); border-radius: 999px; color: var(--amber); font-size: 9px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; line-height: 1.4; vertical-align: middle; }
+  .spot-district { color: var(--amber); }
   .tips-chips { display: flex; flex-wrap: wrap; gap: 6px; }
   .tips-chips button { padding: 8px 12px; border-radius: 999px; border: 1px solid rgba(240,239,236,0.18); background: transparent; color: var(--paper); font-size: 13px; font-weight: 600; cursor: pointer; -webkit-tap-highlight-color: transparent; }
   .tips-chips button.active { border-color: var(--amber); color: var(--amber); background: rgba(232,163,61,0.12); }
@@ -869,6 +874,9 @@
           </form>
           <p id="spot-search-status" class="hidden" style="font-size:13px; color:var(--muted); margin:10px 0 0;"></p>
           <div id="spot-search-results"></div>
+          <div id="spot-manual-wrap" class="hidden" style="margin-top:12px;">
+            <button type="button" class="tips-link" id="spot-manual-btn" style="font-size:13px;">+ Nichts Passendes? Von Hand eintragen</button>
+          </div>
         </div>
         <form class="entry-form hidden" id="spot-form">
           <!-- Foto Scan vorerst ausgeblendet. Zum Einschalten die Klasse "hidden" beim folgenden div entfernen. -->
@@ -899,6 +907,7 @@
           <label class="full">Straße und Hausnummer<input type="text" id="spot-street" placeholder="z. B. Bartelsstraße 7 bis 11" /></label>
           <label>PLZ<input type="text" id="spot-zip" inputmode="numeric" maxlength="5" placeholder="20357" /></label>
           <label>Ort<input type="text" id="spot-city" placeholder="z. B. Hamburg" /></label>
+          <label class="full">Stadtteil<input type="text" id="spot-district" list="spot-district-list" placeholder="wird automatisch gefunden" autocomplete="off" /><datalist id="spot-district-list"></datalist></label>
           <label>Eingetragen von
             <select id="spot-who">
               <option>Buggi</option>
@@ -949,6 +958,7 @@
           <button type="button" data-spot-filter="food">🍽️ Essen</button>
           <button type="button" data-spot-filter="drinks">🍺 Drinks</button>
         </div>
+        <div id="spots-districts" class="hidden" style="margin:12px 0 4px;"></div>
         <div id="spots-map-wrap" class="hidden">
           <div id="spots-map" style="height:380px; border-radius:10px; overflow:hidden; border:1px solid rgba(240,239,236,0.1);"></div>
           <p id="spots-map-status" style="font-size:12px; color:var(--muted); margin:8px 0 18px;"></p>
@@ -1281,6 +1291,7 @@
   let concertCache = {};
   let adminNotes = "";
   let bandAddLog = [];
+  let favDistricts = []; // Lieblings Stadtteile in Einkehr, stehen oben
   let ticketLock = null; // Sichtschutz für Tickets: {salt, hash, at}, nur der Hash des Passworts wird gespeichert
   let closedTips = []; // von euch gemeldete Tipps, die es nicht mehr gibt: {name, street, zip, at}
   let visitLog = [];
@@ -1301,9 +1312,31 @@
   // 2.0.1 für Fehlerbehebungen und Kleinigkeiten, 2.1.0 für neue Funktionen, 3.0.0 für große Umbauten.
   // Die Nummer steht zusätzlich im meta Tag app-version im Kopf der Seite, beide müssen gleich sein.
   // Geänderte Functions bekommen im Kopf ihrer Datei dieselbe Nummer, damit man auch dort den Stand erkennt.
-  const APP_VERSION = "2.11.0";
-  const APP_RELEASED = "2026-10-28";
+  const APP_VERSION = "2.15.0";
+  const APP_RELEASED = "2026-10-30";
   const CHANGELOG = [
+    { v: "2.15.0", date: "2026-10-30", title: "News bei knappen Tickets", items: [
+      "In den News erscheint eine Meldung, sobald bei einem Konzert zum ersten Mal wenige Tickets, hohe Nachfrage oder Ausverkauft gemeldet wird",
+      "Eine Meldung kommt pro Stufe nur einmal, auch wenn eine Quelle zwischendurch schwankt, und verschwindet, wenn das Konzert vorbei ist",
+      "Ein Tipp auf die Meldung springt zur Band in der Live Liste",
+    ] },
+    { v: "2.14.0", date: "2026-10-30", title: "Gefragte Konzerte markiert", items: [
+      "Konzerte mit wenigen Tickets, stark gefragte und ausverkaufte Konzerte haben eine Markierung in der Live Liste und in Plano",
+      "Über der Live Liste steht, wie viele Konzerte gefragt oder ausverkauft sind",
+      "Shows in den nächsten 120 Tagen werden wöchentlich neu geprüft, solange sie nicht ausverkauft sind",
+    ] },
+    { v: "2.13.0", date: "2026-10-30", title: "Einkehr nach Stadtteilen", items: [
+      "Über der Liste stehen die Stadtteile als Auswahl mit der Zahl der Locations, ein Tipp filtert Liste und Karte",
+      "Lieblings Stadtteile lassen sich merken, sie stehen in der Auswahl und in der Liste oben und gelten für alle",
+      "Der Stadtteil wird aus der Adresse gefunden, auch bei bisherigen Locations, und lässt sich im Formular ändern",
+    ] },
+    { v: "2.12.0", date: "2026-10-30", title: "Einkehr: Von Hand eintragen", items: [
+      "Nach einer Suche gibt es unter den Treffern den Knopf Von Hand eintragen, auch wenn nichts gefunden wurde oder die Suche nicht klappte",
+      "Das Formular öffnet sich dann mit dem Suchbegriff als Name und Hamburg als Ort",
+    ] },
+    { v: "2.11.1", date: "2026-10-28", title: "Neue Quelle The Hamburgers", items: [
+      "Die Tipps Suche nennt jetzt auch den Restaurantführer The Hamburgers ausdrücklich als Quelle",
+    ] },
     { v: "2.11.0", date: "2026-10-28", title: "Einkehr in der Nähe: 1 Bar und 2 Essen", items: [
       "Bei Konzerten in Plano stehen jetzt immer eine Bar und zwei Läden mit Essen, ausgewählt nach Bewertung, langer Öffnung am Konzerttag und kurzem Weg",
       "Läden, die am Konzerttag geschlossen haben, kommen nur noch zuletzt",
@@ -1421,11 +1454,16 @@
   const SPOT_FOOD_TYPES = ["Restaurant", "Imbiss", "Burger", "Chicken", "Griechisch", "All You Can Eat", "Pizza", "Steak", "Tacos", "Fisch", "Sandwich"];
   const SPOT_DRINK_TYPES = ["Bar", "Craftbeer Bar", "Biergarten", "Café"];
   let spotFilter = "all";
-  function spotPassesFilter(sp) {
+  let districtFilter = ""; // gewählter Stadtteil in Einkehr, leer bedeutet alle
+  function spotPassesType(sp) {
     if (spotFilter === "all") return true;
     const t = (sp && sp.type) || "Restaurant";
     return spotFilter === "food" ? SPOT_FOOD_TYPES.includes(t) : SPOT_DRINK_TYPES.includes(t);
   }
+  function spotPassesFilter(sp) {
+    return spotPassesType(sp) && (!districtFilter || ((sp && sp.district) || "") === districtFilter);
+  }
+  const isFavDistrict = (name) => !!name && favDistricts.includes(name);
   function visibleSpots() { return spots.filter(spotPassesFilter); }
   function spotEmoji(sp) { return SPOT_MAP_EMOJI[sp && sp.type] || "🍽️"; }
   // Kennzeichnung einer Location: Newcomer oder gerade im Trend
@@ -1662,7 +1700,7 @@
   function persist() {
     renderNews();
     if (!docRef) return;
-    docRef.set({ events, photos, playlists, ideas, albums, trackedArtists, concertCache, adminNotes, spots, bandAddLog, closedTips, ticketLock }, { merge: true }).catch((e) => console.error("Speichern fehlgeschlagen", e));
+    docRef.set({ events, photos, playlists, ideas, albums, trackedArtists, concertCache, adminNotes, spots, bandAddLog, closedTips, ticketLock, favDistricts }, { merge: true }).catch((e) => console.error("Speichern fehlgeschlagen", e));
   }
 
   function renderVisitStats() {
@@ -1866,6 +1904,9 @@
       } else if (first.kind === "spot") {
         m.icon = "🍻";
         m.html = `${who}hat ${n} Locations eingetragen: ${lines}`;
+      } else if (first.kind.startsWith("tickets")) {
+        m.html = `<b>${first.ticketLabel}:</b> ${lines}`;
+        m.targetId = undefined; // mehrere Bands: nur in den Live Tab springen
       } else if (first.kind === "album") {
         m.html = `${who}hat ${n} Alben angelegt: ${lines}`;
       } else if (first.kind === "photo") {
@@ -1890,6 +1931,27 @@
     // Jeder Eintrag trägt kind (Art der Meldung), who (Urheber) und itemHtml (Zeile für zusammengefasste Kacheln),
     // damit gleiche Meldungen vom selben Tag später zu einer Kachel werden.
 
+    // Ticketlage: Konzerte, bei denen die Tickets knapp werden oder ausverkauft sind
+    const todayIso = new Date().toISOString().slice(0, 10);
+    Object.entries(concertCache).forEach(([key, c]) => {
+      const tn = c && c.ticketNews;
+      if (!tn || !tn.at || !tn.showDate || tn.showDate < todayIso || !c.data || !c.data.hasHamburgShow) return;
+      const artist = trackedArtists.find((a) => a.toLowerCase() === key);
+      if (!artist) return; // Band wurde entfernt
+      const label = tn.level === "ausverkauft" ? "Ausverkauft" : tn.level === "wenige" ? "Wenige Tickets" : "Stark gefragt";
+      const d0 = new Date(tn.showDate + "T00:00:00");
+      const short = `${["So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"][d0.getDay()]}, ${String(d0.getDate()).padStart(2, "0")}.${String(d0.getMonth() + 1).padStart(2, "0")}.`;
+      entries.push({
+        ts: tn.at,
+        icon: tn.level === "ausverkauft" ? "🔴" : "🔥",
+        html: `<b>${label}:</b> ${escapeHtml(artist)}, ${escapeHtml(fmtDateDay(tn.showDate))}${c.data.location ? ` · ${escapeHtml(c.data.location)}` : ""}`,
+        tab: "concerts",
+        targetId: `cc-card-${ccSafeId(artist)}`,
+        kind: "tickets" + tn.level,
+        ticketLabel: label,
+        itemHtml: `<b>${escapeHtml(artist)}</b> (${escapeHtml(short)})`,
+      });
+    });
     (bandAddLog || []).forEach((entry) => {
       if (!entry.addedAt) return;
       const item = `<b>${escapeHtml(entry.artist)}</b>`;
@@ -2383,6 +2445,7 @@
                 <span>👤 ${escapeHtml(ev.who)}</span>
               </div>
               ${ccRenderSupportActsHtml(ev.supportActs)}
+              ${!dim && ccDataForEvent(ev) && ccDemand(ccDataForEvent(ev)) ? `<div style="margin:6px 0;">${ccDemandPillHtml(ccDataForEvent(ev))}</div>` : ""}
               ${supportSearchHtml(ev, dim)}
               ${liveDateHintHtml(ev, dim)}
               ${ev.note ? `<div class="event-note">${escapeHtml(ev.note)}</div>` : ""}
@@ -3157,6 +3220,37 @@
     loadTaplist(b.dataset.tapLoad);
   });
 
+  // Zeile mit den Stadtteilen: Lieblings Stadtteile zuerst, dann die mit den meisten Locations. Ein Tipp filtert die Liste und die Karte.
+  function updateDistrictUi() {
+    const wrap = document.getElementById("spots-districts");
+    const counts = {};
+    spots.filter(spotPassesType).forEach((sp) => { if (sp.district) counts[sp.district] = (counts[sp.district] || 0) + 1; });
+    document.getElementById("spot-district-list").innerHTML = [...new Set(spots.map((sp) => sp.district).filter(Boolean))].sort().map((dn) => `<option value="${escapeHtml(dn)}"></option>`).join("");
+    const names = Object.keys(counts);
+    if (districtFilter && !counts[districtFilter]) districtFilter = ""; // der gewählte Stadtteil hat unter diesem Filter nichts
+    if (names.length < 2) { wrap.classList.add("hidden"); wrap.innerHTML = ""; if (names.length === 0) districtFilter = ""; return; }
+    names.sort((a, b) => ((isFavDistrict(b) ? 1 : 0) - (isFavDistrict(a) ? 1 : 0)) || (counts[b] - counts[a]) || a.localeCompare(b, "de"));
+    const total = Object.values(counts).reduce((x, y) => x + y, 0);
+    const chip = (key, label, active) => `<button type="button" data-district="${escapeHtml(key)}" class="${active ? "active" : ""}">${label}</button>`;
+    const fav = districtFilter ? isFavDistrict(districtFilter) : false;
+    wrap.innerHTML = `<div class="tips-chips" style="margin:0 0 6px;">${chip("", `Alle Stadtteile · ${total}`, !districtFilter)}${names.map((nm) => chip(nm, `${isFavDistrict(nm) ? "⭐ " : ""}${escapeHtml(nm)} · ${counts[nm]}`, districtFilter === nm)).join("")}</div>`
+      + (districtFilter ? `<button type="button" class="tips-link" data-district-fav="${escapeHtml(districtFilter)}" style="font-size:13px; margin-bottom:8px;">${fav ? "⭐ Lieblings Stadtteil entfernen" : "☆ Als Lieblings Stadtteil merken"}</button>` : "");
+    wrap.classList.remove("hidden");
+  }
+  document.getElementById("spots-districts").addEventListener("click", (e) => {
+    const fav = e.target.closest("[data-district-fav]");
+    if (fav) {
+      const nm = fav.dataset.districtFav;
+      favDistricts = favDistricts.includes(nm) ? favDistricts.filter((x) => x !== nm) : favDistricts.concat(nm);
+      persist();
+      renderSpots();
+      return;
+    }
+    const b = e.target.closest("[data-district]");
+    if (!b) return;
+    districtFilter = b.dataset.district === districtFilter ? "" : b.dataset.district;
+    renderSpots();
+  });
   function updateSpotFilterUi() {
     const n = { all: spots.length, food: spots.filter((x) => SPOT_FOOD_TYPES.includes(x.type || "Restaurant")).length, drinks: spots.filter((x) => SPOT_DRINK_TYPES.includes(x.type || "Restaurant")).length };
     const label = { all: "Alle", food: "🍽️ Essen", drinks: "🍺 Drinks" };
@@ -3277,7 +3371,11 @@
 
   function renderSpots() {
     document.getElementById("spot-count").textContent = spots.length;
-    setTimeout(() => { renderSpotsMap(); fillNearby(); refreshNearbyData(); }, 0);
+    setTimeout(() => {
+      renderSpotsMap(); fillNearby(); refreshNearbyData();
+      // Stadtteile für ältere Locations nachholen, auch wenn die Karte nicht offen ist
+      if (spots.some((sp) => spotAddrKey(sp) && !sp.district && !sp.districtManual && !sp.districtTried)) ensureSpotCoords();
+    }, 0);
     const list = document.getElementById("spots-list");
     const empty = document.getElementById("spots-empty");
     renderSpotsArchive();
@@ -3289,12 +3387,14 @@
     empty.classList.add("hidden");
     // Dauerhaft geschlossene Locations stehen ganz unten
     updateSpotFilterUi();
+    updateDistrictUi();
     const shown = visibleSpots();
     if (shown.length === 0) {
       list.innerHTML = `<div class="empty-state"><div class="ic">${spotFilter === "food" ? "🍽️" : "🍺"}</div><p>${spotFilter === "food" ? "Noch keine Locations mit Essen." : "Noch keine Locations mit Drinks."}</p></div>`;
       return;
     }
-    const sorted = [...shown].sort((a, b) => (a.closed ? 1 : 0) - (b.closed ? 1 : 0));
+    // Geschlossene ganz unten, Locations aus Lieblings Stadtteilen zuerst, sonst bleibt die Reihenfolge
+    const sorted = [...shown].sort((a, b) => ((a.closed ? 1 : 0) - (b.closed ? 1 : 0)) || ((isFavDistrict(b.district) ? 1 : 0) - (isFavDistrict(a.district) ? 1 : 0)));
     list.innerHTML = sorted.map((sp) => {
       const addrLine = [sp.street, [sp.zip, sp.city].filter(Boolean).join(" ")].filter(Boolean).join(", ");
       const mapsUrl = "https://www.google.com/maps/search/?api=1&query=" + encodeURIComponent([sp.name, sp.street, sp.zip, sp.city].filter(Boolean).join(" "));
@@ -3319,7 +3419,7 @@
               ${sp.rating ? `<span class="spot-tag">${"★".repeat(sp.rating)}</span>` : ""}
               <span>von ${escapeHtml(sp.who)}</span>
             </p>
-            ${addrLine ? `<p class="note" style="margin-top:4px;">📍 ${escapeHtml(addrLine)}</p>` : ""}
+            ${addrLine || sp.district ? `<p class="note" style="margin-top:4px;">📍 ${escapeHtml(addrLine)}${sp.district ? `${addrLine ? " · " : ""}<span class="spot-district">${isFavDistrict(sp.district) ? "⭐ " : ""}${escapeHtml(sp.district)}</span>` : ""}</p>` : ""}
             ${sp.note ? `<p class="note">${escapeHtml(sp.note)}</p>` : ""}
           </div>
           <div style="flex-shrink:0; display:flex; flex-direction:column; align-items:flex-end; gap:4px;">
@@ -3376,6 +3476,7 @@
         document.getElementById("spot-street").value = sp.street || "";
         document.getElementById("spot-zip").value = sp.zip || "";
         document.getElementById("spot-city").value = sp.city || "";
+        document.getElementById("spot-district").value = sp.district || "";
         document.getElementById("spot-who").value = sp.who;
         document.getElementById("spot-link").value = sp.link || "";
         document.getElementById("spot-untappd").value = sp.untappd || "";
@@ -3449,7 +3550,7 @@
     const id = go.dataset.spotsGoto;
     closeSpotsArchive();
     const target = spots.find((x) => x.id === id);
-    if (target && !spotPassesFilter(target)) spotFilter = "all"; // sonst wäre die Karte ausgeblendet
+    if (target && !spotPassesFilter(target)) { spotFilter = "all"; districtFilter = ""; } // sonst wäre die Karte ausgeblendet
     openSpots.add(id);
     renderSpots();
     const card = document.getElementById("spot-" + id);
@@ -3497,6 +3598,11 @@
     return p;
   }
 
+  // Stadtteil aus einem Treffer von OpenStreetMap: bevorzugt der Stadtteil (St. Pauli), sonst Ortsteil oder Bezirk
+  function districtFromHit(hit) {
+    const a = (hit && hit.address) || {};
+    return String(a.suburb || a.neighbourhood || a.quarter || a.city_district || "").trim();
+  }
   async function ensureSpotCoords() {
     if (spotsGeocoding) return;
     spotsGeocoding = true;
@@ -3505,13 +3611,18 @@
     try {
       for (const sp of spots) {
         const key = spotAddrKey(sp);
-        if (!key || sp.geoKey === key) continue; // keine Adresse oder schon gesucht
+        // Neu suchen bei neuer Adresse, und einmalig bei älteren Locations, denen noch der Stadtteil fehlt
+        const needsDistrict = sp.geoKey === key && !sp.district && !sp.districtManual && !sp.districtTried;
+        if (!key || (sp.geoKey === key && !needsDistrict)) continue; // keine Adresse oder schon gesucht
         if (status) status.textContent = "Adressen werden gesucht …";
         try {
           const hit = await nominatimLookup(key);
+          if (sp.geoKey !== key) { delete sp.districtTried; if (!sp.districtManual) delete sp.district; }
           sp.geoKey = key;
           delete sp.lat; delete sp.lng;
           if (hit) { sp.lat = parseFloat(hit.lat); sp.lng = parseFloat(hit.lon); }
+          if (!sp.districtManual) { const dist = districtFromHit(hit); if (dist) sp.district = dist; }
+          sp.districtTried = true;
           changed = true;
         } catch (err) {
           console.error("Adresssuche fehlgeschlagen", err); // beim nächsten Mal erneut versuchen
@@ -3520,7 +3631,7 @@
     } finally {
       spotsGeocoding = false;
     }
-    if (changed) persist();
+    if (changed) { persist(); renderSpots(); } // neue Stadtteile sofort in der Übersicht zeigen
     renderSpotsMap();
   }
 
@@ -3925,6 +4036,7 @@
     document.getElementById("spot-street").value = r.street;
     document.getElementById("spot-zip").value = r.zip;
     document.getElementById("spot-city").value = r.city;
+    document.getElementById("spot-district").value = "";
     document.getElementById("spot-link").value = r.website;
     document.getElementById("spot-untappd").value = "";
     document.getElementById("spot-note").value = [r.note, r.source ? "Tipp von " + r.source : ""].filter(Boolean).join(" · ");
@@ -3936,8 +4048,38 @@
     spotSearchResults = [];
     renderSpotSearchResults();
     setSpotSearchStatus("", false);
+    document.getElementById("spot-manual-wrap").classList.add("hidden");
     document.getElementById("spot-search-input").value = "";
   }
+
+  // Von Hand eintragen, wenn die Suche den richtigen Laden nicht findet (zum Beispiel bei häufigen Namen wie Asia Imbiss)
+  function startManualSpot() {
+    const typed = document.getElementById("spot-search-input").value.trim();
+    showSpotsMain();
+    pendingSpotExtras = null;
+    editingSpotId = null;
+    document.getElementById("spot-submit-btn").textContent = "Speichern";
+    document.getElementById("spot-name").value = typed;
+    setSpotTypeForNew("Restaurant");
+    document.getElementById("spot-street").value = "";
+    document.getElementById("spot-zip").value = "";
+    document.getElementById("spot-city").value = "Hamburg";
+    document.getElementById("spot-district").value = "";
+    document.getElementById("spot-link").value = "";
+    document.getElementById("spot-untappd").value = "";
+    document.getElementById("spot-note").value = "";
+    document.getElementById("spot-rating").value = "0";
+    document.getElementById("spot-badge").value = "";
+    resetSpotImageUi();
+    document.getElementById("spot-form").classList.remove("hidden");
+    document.getElementById(typed ? "spot-street" : "spot-name").scrollIntoView({ behavior: "smooth", block: "center" });
+    spotSearchResults = [];
+    renderSpotSearchResults();
+    setSpotSearchStatus("", false);
+    document.getElementById("spot-manual-wrap").classList.add("hidden");
+    document.getElementById("spot-search-input").value = "";
+  }
+  document.getElementById("spot-manual-btn").addEventListener("click", startManualSpot);
 
   document.getElementById("spot-search-form").addEventListener("submit", async (e) => {
     e.preventDefault();
@@ -3947,6 +4089,7 @@
     btn.disabled = true;
     spotSearchResults = [];
     renderSpotSearchResults();
+    document.getElementById("spot-manual-wrap").classList.add("hidden");
     setSpotSearchStatus("Suche läuft …", false);
     try {
       const resp = await fetch(SEARCH_ENDPOINT, {
@@ -3968,6 +4111,7 @@
       setSpotSearchStatus("Die Suche hat gerade nicht geklappt. Bitte noch einmal versuchen.", true);
     } finally {
       btn.disabled = false;
+      document.getElementById("spot-manual-wrap").classList.remove("hidden");
     }
   });
 
@@ -4321,6 +4465,12 @@
       badge: document.getElementById("spot-badge").value,
     };
     if (!spotData.name) return;
+    {
+      const typedDistrict = document.getElementById("spot-district").value.trim();
+      const prev = editingSpotId ? spots.find((x) => x.id === editingSpotId) : null;
+      if (typedDistrict && typedDistrict !== ((prev && prev.district) || "")) { spotData.district = typedDistrict; spotData.districtManual = true; }
+      else if (!typedDistrict && prev && (prev.district || prev.districtManual)) { spotData.district = ""; spotData.districtManual = false; spotData.districtTried = false; spotData.geoKey = ""; } // leer gelassen: Stadtteil wird neu gesucht
+    }
 
     const btn = document.getElementById("spot-submit-btn");
     const st = document.getElementById("spot-submit-status");
@@ -4602,7 +4752,13 @@
     // fälschlich verschwinden lassen. Ein vergangenes Datum sorgt weiter unten trotzdem dafür,
     // dass automatisch neu geprüft wird.
     const wasFound = cached && cached.data && (cached.data.hasHamburgShow || cached.data.isOnTour);
-    const cacheDurationMs = (wasFound ? CC_CACHE_DAYS_FOUND : CC_CACHE_DAYS) * 24 * 60 * 60 * 1000;
+    let cacheDurationMs = (wasFound ? CC_CACHE_DAYS_FOUND : CC_CACHE_DAYS) * 24 * 60 * 60 * 1000;
+    // Die Ticketlage ändert sich schnell: nahe Shows werden wöchentlich neu geprüft, solange sie nicht ausverkauft sind
+    if (cached && cached.data && cached.data.hasHamburgShow && String(cached.data.ticketAvailability || "").toLowerCase() !== "ausverkauft") {
+      const showIso = ccParseGermanDate(cached.data.date);
+      const daysAway = showIso ? (new Date(showIso + "T00:00:00") - Date.now()) / 86400000 : Infinity;
+      if (daysAway >= 0 && daysAway <= CC_TICKET_WATCH_DAYS) cacheDurationMs = Math.min(cacheDurationMs, CC_CACHE_DAYS_TICKETS * 24 * 60 * 60 * 1000);
+    }
     let isFresh = cached && cacheAge < cacheDurationMs;
 
     // Zeigt der Cache eine Show (oder einen Tour-Hinweis), die schon vorbei ist? Dann gilt der
@@ -4630,7 +4786,7 @@
         body: JSON.stringify({ band: artist })
       });
       const data = await res.json();
-      concertCache[key] = { timestamp: Date.now(), data };
+      concertCache[key] = { timestamp: Date.now(), data, ...ccTicketNews(cached, data) };
       persist();
       renderCCCard(artist, data);
     } catch (err) {
@@ -4743,7 +4899,7 @@
       const weekdayNames = ["Sonntag", "Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag"];
       const weekendTag = dayOfWeek === null ? "" : (dayOfWeek === 5 || dayOfWeek === 6 ? ` · 🎉 ${weekdayNames[dayOfWeek]}` : ` · ${weekdayNames[dayOfWeek]}`);
       statusEl.innerHTML = `<span class="cc-badge-hh">SHOW GEFUNDEN</span>`;
-      subHtml = `🗓️ ${escapeHtml(data.date)}${weekendTag}${data.time ? ` · 🕐 ${escapeHtml(data.time)}` : ""}${data.location ? ` · ${escapeHtml(data.location)}` : ""}`;
+      subHtml = `🗓️ ${escapeHtml(data.date)}${weekendTag}${data.time ? ` · 🕐 ${escapeHtml(data.time)}` : ""}${data.location ? ` · ${escapeHtml(data.location)}` : ""}${ccDemand(data) ? `<div class="cc-demand-line">${ccDemandPillHtml(data)}</div>` : ""}`;
       expandedEl.classList.remove("hidden");
       const rawTicketUrl = data.ticketUrl ? data.ticketUrl.trim() : "";
       const isSpecificTicketUrl = rawTicketUrl && (() => {
@@ -4763,7 +4919,7 @@
       const hvvUrl = `https://www.hvv.de/de/fahrplaene/fahrplanauskunft`;
       expandedEl.innerHTML = `
         <div class="cc-card-date">🗓️ ${escapeHtml(data.date)}${weekendTag}${data.time ? ` · 🕐 ${escapeHtml(data.time)}` : ""} · ${escapeHtml(data.location || "")}</div>
-        ${data.ticketAvailability === "ausverkauft" ? `<div class="cc-ticket-warning">🔴 Ausverkauft</div>` : data.ticketAvailability === "wenige" ? `<div class="cc-ticket-warning">⚠️ Nur noch wenige Tickets</div>` : ""}
+        ${ccDemand(data) ? `<div class="cc-ticket-warning">${ccDemand(data).label}${data.ticketNote ? ` <span style="font-weight:400; color:var(--muted);">· ${escapeHtml(data.ticketNote)}</span>` : ""}</div>` : ""}
         ${ccRenderSupportActsHtml(data.supportActs)}
         ${data.info ? `<div class="cc-card-info">${escapeHtml(data.info)}</div>` : ""}
         <div style="display:flex; gap:6px; margin-top:8px; flex-wrap:wrap;">
@@ -4830,12 +4986,50 @@
     // Bands ohne Termin stehen nicht mehr in der Liste, sondern nur noch im Band Archiv.
     const bandState = showIsValid ? "show" : card.classList.contains("cc-ontour") ? "tour" : "none";
     card.dataset.ccState = bandState;
+    const demandNow = bandState === "show" ? ccDemand(data) : null;
+    if (demandNow) card.dataset.ccDemand = demandNow.level; else delete card.dataset.ccDemand;
     card.classList.toggle("hidden", bandState === "none");
     if (bandState === "none") ccMaybeShowAddHint(artist);
     ccApplyOpen(card, subHtml);
     ccApplyPlanoMark(card);
     ccReorderFeed();
     ccUpdateCounts();
+  }
+
+  // Meldung für die News: wird nur ausgelöst, wenn die Ticketlage für diese Show schlechter wird als je zuvor gemeldet
+  // (gefragt, dann wenige, dann ausverkauft). Wackelt eine Quelle zwischen leer und wenige hin und her, gibt es keine zweite Meldung.
+  const CC_TICKET_RANK = { gefragt: 1, wenige: 2, ausverkauft: 3 };
+  function ccTicketNews(prevEntry, data) {
+    const showIso = data && data.hasHamburgShow ? ccParseGermanDate(data.date) : "";
+    if (!showIso) return {};
+    const avail = String(data.ticketAvailability || "").toLowerCase();
+    const prev = prevEntry && prevEntry.ticketNews && prevEntry.ticketNews.showDate === showIso ? prevEntry.ticketNews : null;
+    const nr = CC_TICKET_RANK[avail] || 0;
+    if (nr && (!prev || nr > (CC_TICKET_RANK[prev.level] || 0))) return { ticketNews: { level: avail, at: Date.now(), showDate: showIso } };
+    return prev ? { ticketNews: prev } : {};
+  }
+  // ---- Nachfrage: ausverkauft, wenige Tickets, stark gefragt (kommt aus der Konzertsuche, ticketAvailability) ----
+  const CC_CACHE_DAYS_TICKETS = 7;   // Shows in den nächsten 120 Tagen werden wöchentlich neu geprüft, solange sie nicht ausverkauft sind
+  const CC_TICKET_WATCH_DAYS = 120;
+  function ccDemand(data) {
+    const a = data && String(data.ticketAvailability || "").toLowerCase();
+    if (a === "ausverkauft") return { level: "sold", label: "🔴 Ausverkauft" };
+    if (a === "wenige") return { level: "few", label: "🔥 Wenige Tickets" };
+    if (a === "gefragt") return { level: "hot", label: "🔥 Stark gefragt" };
+    return null;
+  }
+  function ccDemandPillHtml(data) {
+    const dm = ccDemand(data);
+    if (!dm) return "";
+    const note = data.ticketNote ? ` title="${escapeHtml(data.ticketNote)}"` : "";
+    return `<span class="cc-demand cc-demand-${dm.level}"${note}>${dm.label}</span>`;
+  }
+  // Daten der Konzertsuche zu einem Konzert in Plano: gleiche Band und gleiches Datum oder gleicher Ort
+  function ccDataForEvent(ev) {
+    if (ev.type !== "Konzert") return null;
+    const artist = artistForEvent(ev);
+    const cached = artist && concertCache[artist.toLowerCase()];
+    return cached && supportFromData(cached.data, ev) ? cached.data : null;
   }
 
   // ---- Konzerte, die schon in Plano stehen, bekommen ein 🎫 ----
@@ -4903,6 +5097,8 @@
     const active = n("show") + n("tour"), none = n("none"), pending = n("pending");
     const parts = [];
     if (active) parts.push(`${active} Band${active === 1 ? "" : "s"} mit Termin oder Tour`);
+    const hot = cards.filter((c) => c.dataset.ccDemand && !c.classList.contains("hidden")).length;
+    if (hot) parts.push(`🔥 ${hot} gefragt oder ausverkauft`);
     if (pending) parts.push(`${pending} werden geprüft`);
     if (none) parts.push(`<button type="button" class="tips-link" data-cc-open-archive style="font-size:inherit;">${none} ohne Termin im Archiv</button>`);
     sum.innerHTML = parts.join(" · ");
@@ -5005,6 +5201,7 @@
         bandAddLog = data.bandAddLog || [];
         closedTips = data.closedTips || [];
         ticketLock = data.ticketLock || null;
+        favDistricts = data.favDistricts || [];
         visitLog = data.visitLog || [];
         spots = data.spots || [];
         renderAll();

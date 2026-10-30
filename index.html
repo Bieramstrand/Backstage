@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-<meta name="app-version" content="2.15.0" />
+<meta name="app-version" content="2.16.0" />
 <title>Backstage by BierAmStrand</title>
 
 <!-- App-Icon: dunkles Quadrat mit goldenem "B" -->
@@ -808,6 +808,7 @@
               <option>Marco</option>
             </select>
           </label>
+          <div id="ev-file-for" class="full hidden"></div>
           <p style="font-size:12px; color:var(--muted); margin:-8px 0 0;" class="full">Max. 20 MB pro Datei.</p>
           <p style="font-size:12px; color:var(--muted); margin:-8px 0 0;" class="full">Neue Dateien kommen zu bereits vorhandenen hinzu. Einzelne Dateien lassen sich direkt auf der Termin-Karte entfernen.</p>
           <p class="config-note hidden" id="ev-file-status"></p>
@@ -1312,9 +1313,14 @@
   // 2.0.1 für Fehlerbehebungen und Kleinigkeiten, 2.1.0 für neue Funktionen, 3.0.0 für große Umbauten.
   // Die Nummer steht zusätzlich im meta Tag app-version im Kopf der Seite, beide müssen gleich sein.
   // Geänderte Functions bekommen im Kopf ihrer Datei dieselbe Nummer, damit man auch dort den Stand erkennt.
-  const APP_VERSION = "2.15.0";
+  const APP_VERSION = "2.16.0";
   const APP_RELEASED = "2026-10-30";
   const CHANGELOG = [
+    { v: "2.16.0", date: "2026-10-30", title: "Tickets mit Namen", items: [
+      "Beim Hochladen wählst du pro Ticket, für wen es ist, der Hochladende ist vorgewählt",
+      "In Plano steht auch bei gesperrten Tickets, für wen sie sind, zum Beispiel 2 Tickets für Buggi, Marco gesperrt",
+      "Bei bisherigen Tickets lässt sich die Zuordnung nachträglich ändern, sobald die Tickets entsperrt sind",
+    ] },
     { v: "2.15.0", date: "2026-10-30", title: "News bei knappen Tickets", items: [
       "In den News erscheint eine Meldung, sobald bei einem Konzert zum ersten Mal wenige Tickets, hohe Nachfrage oder Ausverkauft gemeldet wird",
       "Eine Meldung kommt pro Stufe nur einmal, auch wenn eine Quelle zwischendurch schwankt, und verschwindet, wenn das Konzert vorbei ist",
@@ -1489,6 +1495,9 @@
   const MAX_IMAGE_SIZE = 15 * 1024 * 1024;
   const MAX_VIDEO_SIZE = 100 * 1024 * 1024;
   const MAX_ATTACHMENT_SIZE = 20 * 1024 * 1024;
+  // Für wen ein Ticket ist: wird beim Hochladen pro Datei gewählt und steht auch bei gesperrten Tickets in der Karte
+  const TICKET_PEOPLE = ["Buggi", "Timo", "Bastian", "Marco"];
+  const ticketForOpen = new Set(); // geöffnete Auswahl "für wen" an Karten, Schlüssel Termin und Datei
   function fmtMB(bytes) { return (bytes / (1024 * 1024)).toFixed(1); }
 
   // ---- Lock screen: wird sofort eingerichtet, unabhängig von allem Weiteren ----
@@ -2206,6 +2215,36 @@
     if (didCleanup) persist();
   }
 
+  // ---- Für wen sind die Tickets ----
+  function ticketNames(files) {
+    const names = [];
+    files.forEach((f) => (f.forWho || []).forEach((n) => { if (!names.includes(n)) names.push(n); }));
+    return names;
+  }
+  function ticketForChipsHtml(selected, attrs) {
+    return `<div class="tips-chips" style="margin:4px 0 0;">${TICKET_PEOPLE.map((n) => `<button type="button" ${attrs(n)} class="${selected.includes(n) ? "active" : ""}">${escapeHtml(n)}</button>`).join("")}</div>`;
+  }
+  // Zeilen im Formular: für jede gewählte Datei die Personen, der Hochladende ist vorgewählt
+  function renderTicketForRows() {
+    const input = document.getElementById("ev-file");
+    const box = document.getElementById("ev-file-for");
+    const files = Array.from(input.files || []);
+    if (files.length === 0) { box.classList.add("hidden"); box.innerHTML = ""; return; }
+    const uploader = document.getElementById("ev-file-who").value;
+    box.innerHTML = `<p style="font-size:12px; color:var(--muted); margin:0 0 6px;">Für wen ist das Ticket? Mehrere sind möglich.</p>`
+      + files.map((f, i) => `<div class="ticket-for-row" data-tf-row="${i}" style="margin-bottom:10px;"><div style="font-size:13px; overflow-wrap:anywhere;">📎 ${escapeHtml(f.name)}</div>${ticketForChipsHtml([uploader], (n) => `data-tf-person="${escapeHtml(n)}"`)}</div>`).join("");
+    box.classList.remove("hidden");
+  }
+  document.getElementById("ev-file").addEventListener("change", renderTicketForRows);
+  document.getElementById("event-form").addEventListener("reset", () => setTimeout(renderTicketForRows, 0)); // Zeilen mit dem Formular zurücksetzen
+  document.getElementById("ev-file-for").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-tf-person]");
+    if (b) b.classList.toggle("active");
+  });
+  function readTicketForRows() {
+    return Array.from(document.querySelectorAll("#ev-file-for [data-tf-row]")).map((row) => Array.from(row.querySelectorAll("[data-tf-person].active")).map((b) => b.dataset.tfPerson));
+  }
+
   // ---- Ticket Passwort (Sichtschutz) ----
   // Gespeichert wird nur ein Hash mit Salt. Das verbirgt die Tickets vor zufälligen Blicken. Es ist kein echter Schutz gegen jemanden,
   // der die Datenbank selbst ausliest, denn die Dateien liegen weiter in Firebase Storage.
@@ -2368,7 +2407,31 @@
         if (form) { form.classList.remove("hidden"); form.querySelector("input").focus(); open.classList.add("hidden"); }
         return;
       }
-      if (e.target.closest("[data-lock-tickets]")) lockTickets();
+      if (e.target.closest("[data-lock-tickets]")) { lockTickets(); return; }
+      const edit = e.target.closest("[data-ticket-for-edit]");
+      if (edit) {
+        const key = edit.dataset.ticketForEdit;
+        if (ticketForOpen.has(key)) ticketForOpen.delete(key); else ticketForOpen.add(key);
+        renderEvents();
+        return;
+      }
+      const tog = e.target.closest("[data-tf-toggle]");
+      if (tog) {
+        const [evId, fileId] = tog.dataset.tfToggle.split("|");
+        const ev = events.find((x) => x.id === evId);
+        if (!ev) return;
+        if (!ev.files && ev.fileUrl) { // altes Format mit einer einzelnen Datei in eine Liste umwandeln
+          ev.files = [{ id: uid(), url: ev.fileUrl, name: ev.fileName }];
+          delete ev.fileUrl; delete ev.fileName;
+          if (fileId === "legacy") { ticketForOpen.delete(tog.dataset.tfToggle); ticketForOpen.add(`${evId}|${ev.files[0].id}`); }
+        }
+        const file = ev.files.find((f) => f.id === fileId) || (fileId === "legacy" ? ev.files[0] : null);
+        if (!file) return;
+        const cur = file.forWho || [];
+        file.forWho = cur.includes(tog.dataset.tfName) ? cur.filter((n) => n !== tog.dataset.tfName) : cur.concat(tog.dataset.tfName);
+        persist();
+        renderEvents();
+      }
     });
     list.addEventListener("submit", async (e) => {
       const form = e.target.closest("[data-unlock-form]");
@@ -2419,13 +2482,21 @@
       : list.map((ev) => {
         const attachments = ev.files || (ev.fileUrl ? [{ id: "legacy", url: ev.fileUrl, name: ev.fileName }] : []);
         const baseFilesHtml = attachments.length > 0
-          ? `<div class="event-meta" style="margin-top:6px; flex-direction:column; align-items:flex-start; gap:8px;">${attachments.map((f) => `<span style="display:flex; flex-direction:column;"><span>📎 <a href="${escapeHtml(f.url)}" target="_blank" rel="noreferrer" style="text-decoration:underline; color:var(--paper);">${escapeHtml(f.name || "Datei")}</a> <button class="icon-btn" data-remove-file="${ev.id}" data-file-id="${f.id}" title="Datei entfernen" style="padding:4px; font-size:14px;">✕</button></span>${f.uploadedBy ? `<span style="font-size:12px; margin-left:22px;">hochgeladen von ${escapeHtml(f.uploadedBy)}</span>` : ""}</span>`).join("")}</div>`
+          ? `<div class="event-meta" style="margin-top:6px; flex-direction:column; align-items:flex-start; gap:8px;">${attachments.map((f) => {
+              const forKey = `${ev.id}|${f.id}`;
+              const names = f.forWho || [];
+              return `<span style="display:flex; flex-direction:column;"><span>📎 <a href="${escapeHtml(f.url)}" target="_blank" rel="noreferrer" style="text-decoration:underline; color:var(--paper);">${escapeHtml(f.name || "Datei")}</a> <button class="icon-btn" data-remove-file="${ev.id}" data-file-id="${f.id}" title="Datei entfernen" style="padding:4px; font-size:14px;">✕</button></span>`
+                + `<span style="font-size:13px; margin-left:22px;">${names.length ? `für <b>${escapeHtml(names.join(", "))}</b>` : "für wen?"} · <button type="button" class="tips-link" data-ticket-for-edit="${escapeHtml(forKey)}" style="font-size:12px;">ändern</button></span>`
+                + (ticketForOpen.has(forKey) ? `<span style="margin-left:22px;">${ticketForChipsHtml(names, (n) => `data-tf-toggle="${escapeHtml(forKey)}" data-tf-name="${escapeHtml(n)}"`)}</span>` : "")
+                + (f.uploadedBy ? `<span style="font-size:12px; margin-left:22px;">hochgeladen von ${escapeHtml(f.uploadedBy)}</span>` : "")
+                + `</span>`;
+            }).join("")}</div>`
           : "";
         const ticketsLocked = ticketsLockedNow();
         const nTickets = attachments.length;
         const filesHtml = nTickets === 0 ? ""
           : ticketsLocked
-            ? `<div class="event-meta" style="margin-top:6px;"><span>🔒 ${nTickets} Ticket${nTickets === 1 ? "" : "s"} gesperrt</span> <button type="button" class="tips-link" data-unlock-tickets="${ev.id}" style="font-size:13px;">Passwort eingeben</button></div>
+            ? `<div class="event-meta" style="margin-top:6px;"><span>🔒 ${nTickets} Ticket${nTickets === 1 ? "" : "s"}${ticketNames(attachments).length ? ` für ${escapeHtml(ticketNames(attachments).join(", "))}` : ""} gesperrt${ticketNames(attachments).length && attachments.some((f) => !(f.forWho || []).length) ? ` (${attachments.filter((f) => !(f.forWho || []).length).length} ohne Namen)` : ""}</span> <button type="button" class="tips-link" data-unlock-tickets="${ev.id}" style="font-size:13px;">Passwort eingeben</button></div>
               <form class="ticket-unlock-form hidden" data-unlock-form="${ev.id}" style="display:flex; gap:8px; margin-top:8px;" autocomplete="on">
                 <input type="password" autocomplete="current-password" placeholder="Passwort" style="flex:1; min-width:0;" />
                 <button type="submit" class="btn-promote">Öffnen</button>
@@ -2551,6 +2622,7 @@
         document.getElementById("ev-note").value = ev.note || "";
         document.getElementById("ev-friends").value = ev.friends || "";
         document.getElementById("ev-file").value = "";
+        renderTicketForRows();
         document.getElementById("event-submit-btn").textContent = "Aktualisieren";
         document.getElementById("event-form").classList.remove("hidden");
         document.getElementById("ev-title").scrollIntoView({ behavior: "smooth", block: "center" });
@@ -2825,6 +2897,7 @@
       }
       submitBtn.disabled = true;
       const newFiles = [];
+      const forRows = readTicketForRows();
       for (let i = 0; i < selectedFiles.length; i++) {
         const file = selectedFiles[i];
         statusEl.textContent = `Lade Datei ${i + 1} von ${selectedFiles.length} hoch …`;
@@ -2834,7 +2907,7 @@
           const ref = storage.ref(path);
           await ref.put(file);
           const url = await ref.getDownloadURL();
-          newFiles.push({ id: uid(), url, name: file.name, uploadedBy: fileWho });
+          newFiles.push({ id: uid(), url, name: file.name, uploadedBy: fileWho, forWho: forRows[i] || [] });
         } catch (err) {
           console.error("Datei-Upload fehlgeschlagen", err);
           statusEl.textContent = "Datei-Upload fehlgeschlagen. Bitte nochmal versuchen.";

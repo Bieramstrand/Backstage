@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-<meta name="app-version" content="2.17.1" />
+<meta name="app-version" content="2.18.0" />
 <title>Backstage by BierAmStrand</title>
 
 <!-- App-Icon: dunkles Quadrat mit goldenem "B" -->
@@ -573,6 +573,10 @@
   .app-tile:active .app-icon { transform: scale(0.94); }
   .beta-tag { display: inline-block; margin-left: 6px; padding: 1px 6px; border: 1px solid rgba(232,163,61,0.55); border-radius: 999px; color: var(--amber); font-size: 9px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; line-height: 1.4; vertical-align: middle; }
   .spot-district { color: var(--amber); }
+  .district-select { flex: 1; min-width: 0; padding: 11px 12px; border-radius: 10px; background: var(--bg-soft); color: var(--paper); border: 1px solid rgba(240,239,236,0.14); font-size: 15px; font-weight: 600; }
+  .district-select:focus { outline: none; border-color: var(--amber); }
+  .district-fav-btn { flex-shrink: 0; width: 44px; height: 44px; border-radius: 10px; border: 1px solid rgba(240,239,236,0.14); background: var(--bg-soft); color: var(--muted); font-size: 20px; cursor: pointer; }
+  .district-fav-btn.is-fav { border-color: var(--amber); background: rgba(232,163,61,0.12); }
   .tips-chips { display: flex; flex-wrap: wrap; gap: 6px; }
   .tips-chips button { padding: 8px 12px; border-radius: 999px; border: 1px solid rgba(240,239,236,0.18); background: transparent; color: var(--paper); font-size: 13px; font-weight: 600; cursor: pointer; -webkit-tap-highlight-color: transparent; }
   .tips-chips button.active { border-color: var(--amber); color: var(--amber); background: rgba(232,163,61,0.12); }
@@ -1313,9 +1317,13 @@
   // 2.0.1 für Fehlerbehebungen und Kleinigkeiten, 2.1.0 für neue Funktionen, 3.0.0 für große Umbauten.
   // Die Nummer steht zusätzlich im meta Tag app-version im Kopf der Seite, beide müssen gleich sein.
   // Geänderte Functions bekommen im Kopf ihrer Datei dieselbe Nummer, damit man auch dort den Stand erkennt.
-  const APP_VERSION = "2.17.1";
-  const APP_RELEASED = "2026-10-30";
+  const APP_VERSION = "2.18.0";
+  const APP_RELEASED = "2026-10-31";
   const CHANGELOG = [
+    { v: "2.18.0", date: "2026-10-31", title: "Stadtteile als Auswahlfeld", items: [
+      "Die vielen Stadtteil Knöpfe sind durch ein einziges Auswahlfeld ersetzt, mit der Zahl der Locations hinter jedem Stadtteil",
+      "Lieblings Stadtteile stehen im Feld oben, ein Stern Knopf daneben merkt oder entfernt den gewählten Stadtteil",
+    ] },
     { v: "2.17.1", date: "2026-10-30", title: "Icons der drei Apps wie die Originale", items: [
       "Kassensturz, Finanzmappe und Heimspiel haben im Admin Bereich jetzt Icons nach ihren echten App Icons",
     ] },
@@ -3299,7 +3307,8 @@
     loadTaplist(b.dataset.tapLoad);
   });
 
-  // Zeile mit den Stadtteilen: Lieblings Stadtteile zuerst, dann die mit den meisten Locations. Ein Tipp filtert die Liste und die Karte.
+  // Stadtteile als ein einziges Auswahlfeld statt vieler Knöpfe: Lieblings Stadtteile stehen oben, danach die mit den meisten Locations.
+  // Daneben ein Knopf, um den gewählten Stadtteil als Favorit zu merken.
   function updateDistrictUi() {
     const wrap = document.getElementById("spots-districts");
     const counts = {};
@@ -3308,26 +3317,33 @@
     const names = Object.keys(counts);
     if (districtFilter && !counts[districtFilter]) districtFilter = ""; // der gewählte Stadtteil hat unter diesem Filter nichts
     if (names.length < 2) { wrap.classList.add("hidden"); wrap.innerHTML = ""; if (names.length === 0) districtFilter = ""; return; }
-    names.sort((a, b) => ((isFavDistrict(b) ? 1 : 0) - (isFavDistrict(a) ? 1 : 0)) || (counts[b] - counts[a]) || a.localeCompare(b, "de"));
+    const byCount = (x, y) => (counts[y] - counts[x]) || x.localeCompare(y, "de");
+    const favs = names.filter((nm) => isFavDistrict(nm)).sort(byCount);
+    const others = names.filter((nm) => !isFavDistrict(nm)).sort(byCount);
     const total = Object.values(counts).reduce((x, y) => x + y, 0);
-    const chip = (key, label, active) => `<button type="button" data-district="${escapeHtml(key)}" class="${active ? "active" : ""}">${label}</button>`;
+    const opt = (nm) => `<option value="${escapeHtml(nm)}"${districtFilter === nm ? " selected" : ""}>${isFavDistrict(nm) ? "⭐ " : ""}${escapeHtml(nm)} · ${counts[nm]}</option>`;
     const fav = districtFilter ? isFavDistrict(districtFilter) : false;
-    wrap.innerHTML = `<div class="tips-chips" style="margin:0 0 6px;">${chip("", `Alle Stadtteile · ${total}`, !districtFilter)}${names.map((nm) => chip(nm, `${isFavDistrict(nm) ? "⭐ " : ""}${escapeHtml(nm)} · ${counts[nm]}`, districtFilter === nm)).join("")}</div>`
-      + (districtFilter ? `<button type="button" class="tips-link" data-district-fav="${escapeHtml(districtFilter)}" style="font-size:13px; margin-bottom:8px;">${fav ? "⭐ Lieblings Stadtteil entfernen" : "☆ Als Lieblings Stadtteil merken"}</button>` : "");
+    wrap.innerHTML = `<div style="display:flex; gap:8px; align-items:center;">
+        <select id="spots-district-select" class="district-select" aria-label="Stadtteil wählen">
+          <option value=""${districtFilter ? "" : " selected"}>📍 Alle Stadtteile · ${total}</option>
+          ${favs.length ? `<optgroup label="Lieblings Stadtteile">${favs.map(opt).join("")}</optgroup>` : ""}
+          ${others.length ? `<optgroup label="${favs.length ? "Weitere Stadtteile" : "Stadtteile"}">${others.map(opt).join("")}</optgroup>` : ""}
+        </select>
+        ${districtFilter ? `<button type="button" class="district-fav-btn${fav ? " is-fav" : ""}" data-district-fav="${escapeHtml(districtFilter)}" title="${fav ? "Lieblings Stadtteil entfernen" : "Als Lieblings Stadtteil merken"}" aria-label="${fav ? "Lieblings Stadtteil entfernen" : "Als Lieblings Stadtteil merken"}">${fav ? "⭐" : "☆"}</button>` : ""}
+      </div>`;
     wrap.classList.remove("hidden");
   }
   document.getElementById("spots-districts").addEventListener("click", (e) => {
     const fav = e.target.closest("[data-district-fav]");
-    if (fav) {
-      const nm = fav.dataset.districtFav;
-      favDistricts = favDistricts.includes(nm) ? favDistricts.filter((x) => x !== nm) : favDistricts.concat(nm);
-      persist();
-      renderSpots();
-      return;
-    }
-    const b = e.target.closest("[data-district]");
-    if (!b) return;
-    districtFilter = b.dataset.district === districtFilter ? "" : b.dataset.district;
+    if (!fav) return;
+    const nm = fav.dataset.districtFav;
+    favDistricts = favDistricts.includes(nm) ? favDistricts.filter((x) => x !== nm) : favDistricts.concat(nm);
+    persist();
+    renderSpots();
+  });
+  document.getElementById("spots-districts").addEventListener("change", (e) => {
+    if (e.target.id !== "spots-district-select") return;
+    districtFilter = e.target.value;
     renderSpots();
   });
   function updateSpotFilterUi() {

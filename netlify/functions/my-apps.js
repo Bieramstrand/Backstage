@@ -35,7 +35,14 @@ exports.handler = async (event) => {
 
   const str = (v, max) => (typeof v === "string" ? v.trim().slice(0, max) : "");
   const apps = list
-    .map((a) => ({ id: str(a && a.id, 40), name: str(a && a.name, 60), url: str(a && a.url, 300), beschreibung: str(a && a.beschreibung, 240) }))
+    .map((a) => ({
+      id: str(a && a.id, 40),
+      name: str(a && a.name, 60),
+      url: str(a && a.url, 300),
+      beschreibung: str(a && a.beschreibung, 240),
+      kategorie: str(a && a.kategorie, 40),             // optional, zum Beispiel "Extern genutzt"
+      icon: str(a && a.icon, 40).replace(/[^a-z0-9_]/gi, ""), // optional, id eines vorhandenen Icons, falls die App kein eigenes hat
+    }))
     .filter((a) => a.name && /^https:\/\//i.test(a.url)); // nur https Links, nichts anderes (kein javascript:)
   return reply(200, { apps });
 };

@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-<meta name="app-version" content="2.18.0" />
+<meta name="app-version" content="2.19.0" />
 <title>Backstage by BierAmStrand</title>
 
 <!-- App-Icon: dunkles Quadrat mit goldenem "B" -->
@@ -529,6 +529,13 @@
   .cc-demand-few, .cc-demand-hot { background: rgba(232,163,61,0.18); color: var(--amber); border: 1px solid rgba(232,163,61,0.55); }
   .cc-ticket-warning { font-size: 12px; font-weight: 700; color: #ff8a6b; margin-bottom: 4px; }
   .cc-support-list { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 4px; }
+  #music-sheet { position: fixed; inset: 0; z-index: 300; background: rgba(0,0,0,0.55); display: flex; align-items: flex-end; justify-content: center; padding: 16px 16px calc(16px + env(safe-area-inset-bottom, 0px)); }
+  #music-sheet.hidden { display: none; }
+  .music-sheet-box { width: 100%; max-width: 420px; background: var(--bg-soft); border: 1px solid rgba(240,239,236,0.14); border-radius: 14px; padding: 16px; }
+  .music-sheet-title { margin: 0 0 12px; font-size: 13px; color: var(--muted); text-align: center; overflow-wrap: anywhere; }
+  .music-sheet-btn { display: block; text-align: center; padding: 13px; margin-bottom: 8px; border-radius: 10px; background: rgba(240,239,236,0.08); border: 1px solid rgba(240,239,236,0.18); color: var(--paper); font-size: 15px; font-weight: 700; text-decoration: none; }
+  .music-sheet-btn:hover { border-color: var(--amber); color: var(--amber); }
+  .music-sheet-cancel { display: block; width: 100%; padding: 12px; border-radius: 10px; background: transparent; border: none; color: var(--muted); font-size: 14px; font-weight: 600; cursor: pointer; }
   .cc-support-chip {
     display: inline-flex; align-items: center; gap: 4px;
     background: rgba(240,239,236,0.07); border: 1px solid rgba(240,239,236,0.16);
@@ -1143,6 +1150,15 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-storage-compat.js"></script>
+  <!-- Anhören: Auswahl zwischen Spotify und Apple Music -->
+  <div id="music-sheet" class="hidden" role="dialog" aria-modal="true" aria-labelledby="music-sheet-title">
+    <div class="music-sheet-box">
+      <p id="music-sheet-title" class="music-sheet-title"></p>
+      <div id="music-sheet-links"></div>
+      <button type="button" class="music-sheet-cancel" data-music-close>Abbrechen</button>
+    </div>
+  </div>
+
 <script>
   // ============================================================
   // FIREBASE SETUP — hier eure eigenen Werte eintragen
@@ -1317,9 +1333,13 @@
   // 2.0.1 für Fehlerbehebungen und Kleinigkeiten, 2.1.0 für neue Funktionen, 3.0.0 für große Umbauten.
   // Die Nummer steht zusätzlich im meta Tag app-version im Kopf der Seite, beide müssen gleich sein.
   // Geänderte Functions bekommen im Kopf ihrer Datei dieselbe Nummer, damit man auch dort den Stand erkennt.
-  const APP_VERSION = "2.18.0";
-  const APP_RELEASED = "2026-10-31";
+  const APP_VERSION = "2.19.0";
+  const APP_RELEASED = "2026-11-11";
   const CHANGELOG = [
+    { v: "2.19.0", date: "2026-11-11", title: "Apple Music als Auswahl", items: [
+      "Statt Spotify steht bei Bands und Konzerten jetzt ein Knopf Anhören",
+      "Ein Tipp darauf fragt, ob die Band bei Spotify oder bei Apple Music geöffnet werden soll, auch bei den Vorbands und in Plano",
+    ] },
     { v: "2.18.0", date: "2026-10-31", title: "Stadtteile als Auswahlfeld", items: [
       "Die vielen Stadtteil Knöpfe sind durch ein einziges Auswahlfeld ersetzt, mit der Zahl der Locations hinter jedem Stadtteil",
       "Lieblings Stadtteile stehen im Feld oben, ein Stern Knopf daneben merkt oder entfernt den gewählten Stadtteil",
@@ -2539,7 +2559,7 @@
             </div>
             <div class="event-actions-row">
               ${ev.location ? `<a class="event-tile-btn" href="https://www.hvv.de/de/fahrplaene/fahrplanauskunft" target="_blank" rel="noreferrer">🚍 HVV</a>` : ""}
-              ${ev.type === "Konzert" ? `<a class="event-tile-btn" href="https://open.spotify.com/search/${encodeURIComponent(ev.title)}" target="_blank" rel="noreferrer">▶️ Spotify</a>` : ""}
+              ${ev.type === "Konzert" ? musicLinkHtml(ev.title, "event-tile-btn") : ""}
               ${ev.type === "Konzert" ? `<a class="event-tile-btn" href="https://www.setlist.fm/search?query=${encodeURIComponent(ev.title)}" target="_blank" rel="noreferrer">📋 Setlist</a>` : ""}
               <button class="event-tile-btn" data-share-event="${ev.id}">📤 Teilen</button>
               <button class="event-tile-btn" data-ical-event="${ev.id}">📅 Kalender</button>
@@ -3201,6 +3221,36 @@
     document.querySelectorAll("[data-open-slot]").forEach((el) => { if (el.dataset.openSlot === sp.id) el.innerHTML = spotStatusHtml(sp); });
     document.querySelectorAll("[data-hours-slot]").forEach((el) => { if (el.dataset.hoursSlot === sp.id) el.innerHTML = spotHoursBlockHtml(sp); });
   }
+
+  // ---- Anhören: Spotify oder Apple Music ----
+  // Es gibt nur einen Knopf. Erst beim Tippen darauf wählt man den Dienst in einem kleinen Fenster.
+  const MUSIC_SERVICES = [
+    { label: "Spotify", icon: "🟢", url: (q) => `https://open.spotify.com/search/${encodeURIComponent(q)}` },
+    { label: "Apple Music", icon: "🍎", url: (q) => `https://music.apple.com/de/search?term=${encodeURIComponent(q)}` },
+  ];
+  function musicLinkHtml(query, cls, text) {
+    return `<a href="#" role="button" class="${cls}" data-music-q="${escapeHtml(query)}">${text !== undefined ? text : "🎧 Anhören"}</a>`;
+  }
+  function openMusicSheet(query) {
+    const sheet = document.getElementById("music-sheet");
+    document.getElementById("music-sheet-title").textContent = `${query} anhören bei`;
+    document.getElementById("music-sheet-links").innerHTML = MUSIC_SERVICES.map((svc) =>
+      `<a href="${escapeHtml(svc.url(query))}" target="_blank" rel="noreferrer" class="music-sheet-btn">${svc.icon} ${svc.label}</a>`).join("");
+    sheet.classList.remove("hidden");
+  }
+  function closeMusicSheet() { document.getElementById("music-sheet").classList.add("hidden"); }
+  // Im Capture Schritt, damit der Tipp nicht zusätzlich eine Karte auf oder zuklappt
+  document.addEventListener("click", (e) => {
+    const a = e.target.closest("a[data-music-q]");
+    if (!a) return;
+    e.preventDefault();
+    e.stopPropagation();
+    openMusicSheet(a.dataset.musicQ);
+  }, true);
+  document.getElementById("music-sheet").addEventListener("click", (e) => {
+    if (e.target.id === "music-sheet" || e.target.closest("[data-music-close]") || e.target.closest(".music-sheet-btn")) closeMusicSheet();
+  });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeMusicSheet(); });
 
   // ---- Taplist von Untappd ----
   const TAP_ENDPOINT = "/.netlify/functions/taplist";
@@ -4896,7 +4946,7 @@
     if (!str) return "";
     const names = str.split(",").map((s) => s.trim()).filter(Boolean);
     if (names.length === 0) return "";
-    const chips = names.map((n) => `<a href="https://open.spotify.com/search/${encodeURIComponent(n)}" target="_blank" rel="noreferrer" class="cc-support-chip">▶️ ${escapeHtml(n)}</a>`).join("");
+    const chips = names.map((n) => musicLinkHtml(n, "cc-support-chip", `▶️ ${escapeHtml(n)}`)).join("");
     return `<div class="cc-card-info" style="margin-bottom:4px;">👥 Mit dabei:</div><div class="cc-support-list">${chips}</div>`;
   }
 
@@ -5009,7 +5059,6 @@
       const ticketUrl = isSpecificTicketUrl
         ? rawTicketUrl
         : `https://www.google.com/search?q=${encodeURIComponent(`${artist} ${data.location || "Hamburg"} tickets`)}`;
-      const spotifyUrl = `https://open.spotify.com/search/${encodeURIComponent(artist)}`;
       const setlistUrl = `https://www.setlist.fm/search?query=${encodeURIComponent(artist)}`;
       const hvvUrl = `https://www.hvv.de/de/fahrplaene/fahrplanauskunft`;
       expandedEl.innerHTML = `
@@ -5019,7 +5068,7 @@
         ${data.info ? `<div class="cc-card-info">${escapeHtml(data.info)}</div>` : ""}
         <div style="display:flex; gap:6px; margin-top:8px; flex-wrap:wrap;">
           <a href="${escapeHtml(ticketUrl)}" target="_blank" rel="noreferrer" class="cc-ticket-btn">🎟️ Tickets</a>
-          <a href="${escapeHtml(spotifyUrl)}" target="_blank" rel="noreferrer" class="cc-ticket-btn">▶️ Spotify</a>
+          ${musicLinkHtml(artist, "cc-ticket-btn")}
           <a href="${escapeHtml(setlistUrl)}" target="_blank" rel="noreferrer" class="cc-ticket-btn">📋 Setlist</a>
           <a href="${escapeHtml(hvvUrl)}" target="_blank" rel="noreferrer" class="cc-ticket-btn">🚍 HVV</a>
           <button type="button" class="btn-promote" data-cc-to-event="${escapeHtml(artist)}">🎫 Plano</button>

@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-<meta name="app-version" content="2.19.0" />
+<meta name="app-version" content="2.19.1" />
 <title>Backstage by BierAmStrand</title>
 
 <!-- App-Icon: dunkles Quadrat mit goldenem "B" -->
@@ -535,6 +535,7 @@
   .music-sheet-title { margin: 0 0 12px; font-size: 13px; color: var(--muted); text-align: center; overflow-wrap: anywhere; }
   .music-sheet-btn { display: block; text-align: center; padding: 13px; margin-bottom: 8px; border-radius: 10px; background: rgba(240,239,236,0.08); border: 1px solid rgba(240,239,236,0.18); color: var(--paper); font-size: 15px; font-weight: 700; text-decoration: none; }
   .music-sheet-btn:hover { border-color: var(--amber); color: var(--amber); }
+  .music-sheet-btn.is-loading { opacity: 0.55; pointer-events: auto; }
   .music-sheet-cancel { display: block; width: 100%; padding: 12px; border-radius: 10px; background: transparent; border: none; color: var(--muted); font-size: 14px; font-weight: 600; cursor: pointer; }
   .cc-support-chip {
     display: inline-flex; align-items: center; gap: 4px;
@@ -1333,9 +1334,13 @@
   // 2.0.1 für Fehlerbehebungen und Kleinigkeiten, 2.1.0 für neue Funktionen, 3.0.0 für große Umbauten.
   // Die Nummer steht zusätzlich im meta Tag app-version im Kopf der Seite, beide müssen gleich sein.
   // Geänderte Functions bekommen im Kopf ihrer Datei dieselbe Nummer, damit man auch dort den Stand erkennt.
-  const APP_VERSION = "2.19.0";
+  const APP_VERSION = "2.19.1";
   const APP_RELEASED = "2026-11-11";
   const CHANGELOG = [
+    { v: "2.19.1", date: "2026-11-11", title: "Apple Music auf dem iPhone", items: [
+      "Apple Music öffnet jetzt direkt die Seite der Band, auch in der Musik App auf dem iPhone",
+      "Findet Apple die Band nicht, öffnet sich wie bisher die Suche",
+    ] },
     { v: "2.19.0", date: "2026-11-11", title: "Apple Music als Auswahl", items: [
       "Statt Spotify steht bei Bands und Konzerten jetzt ein Knopf Anhören",
       "Ein Tipp darauf fragt, ob die Band bei Spotify oder bei Apple Music geöffnet werden soll, auch bei den Vorbands und in Plano",
@@ -3224,21 +3229,66 @@
 
   // ---- Anhören: Spotify oder Apple Music ----
   // Es gibt nur einen Knopf. Erst beim Tippen darauf wählt man den Dienst in einem kleinen Fenster.
-  const MUSIC_SERVICES = [
-    { label: "Spotify", icon: "🟢", url: (q) => `https://open.spotify.com/search/${encodeURIComponent(q)}` },
-    { label: "Apple Music", icon: "🍎", url: (q) => `https://music.apple.com/de/search?term=${encodeURIComponent(q)}` },
-  ];
+  // Apple Music: Die Musik App auf dem iPhone ignoriert den Suchbegriff eines Such Links. Deshalb wird beim Öffnen
+  // des Fensters die Künstlerseite bei Apple nachgeschlagen (Function apple-music) und der Link darauf umgestellt.
+  const APPLE_ENDPOINT = "/.netlify/functions/apple-music";
+  const APPLE_STORE_KEY = "backstage_apple_artists_v1";
+  const APPLE_WAIT_MS = 5000; // so lange wartet der Knopf höchstens auf Apple, danach gilt der Such Link
+  const spotifyUrl = (q) => `https://open.spotify.com/search/${encodeURIComponent(q)}`;
+  const appleSearchUrl = (q) => `https://music.apple.com/de/search?term=${encodeURIComponent(q)}`;
+  // Gemerkte Künstlerseiten, Schlüssel ist der Bandname klein geschrieben. Wert: Link oder "" für nicht gefunden.
+  const appleCache = (() => {
+    try { const r = JSON.parse(localStorage.getItem(APPLE_STORE_KEY) || "{}"); return r && typeof r === "object" ? r : {}; } catch { return {}; }
+  })();
+  function saveAppleCache() {
+    try { localStorage.setItem(APPLE_STORE_KEY, JSON.stringify(appleCache)); } catch { /* ohne Speicher wird beim nächsten Mal neu gefragt */ }
+  }
+  async function lookupAppleArtist(query) {
+    const key = query.toLowerCase();
+    if (Object.prototype.hasOwnProperty.call(appleCache, key)) return appleCache[key];
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), APPLE_WAIT_MS);
+    try {
+      const res = await fetch(APPLE_ENDPOINT, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token: PASSWORD, artist: query }),
+        signal: ctrl.signal,
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) return null; // Fehler nicht merken, beim nächsten Mal erneut versuchen
+      const url = typeof data.url === "string" && data.url.startsWith("https://music.apple.com/") ? data.url : "";
+      appleCache[key] = url;
+      saveAppleCache();
+      return url;
+    } catch { return null; } finally { clearTimeout(timer); }
+  }
   function musicLinkHtml(query, cls, text) {
     return `<a href="#" role="button" class="${cls}" data-music-q="${escapeHtml(query)}">${text !== undefined ? text : "🎧 Anhören"}</a>`;
   }
+  let musicSheetQuery = "";
   function openMusicSheet(query) {
-    const sheet = document.getElementById("music-sheet");
+    musicSheetQuery = query;
     document.getElementById("music-sheet-title").textContent = `${query} anhören bei`;
-    document.getElementById("music-sheet-links").innerHTML = MUSIC_SERVICES.map((svc) =>
-      `<a href="${escapeHtml(svc.url(query))}" target="_blank" rel="noreferrer" class="music-sheet-btn">${svc.icon} ${svc.label}</a>`).join("");
-    sheet.classList.remove("hidden");
+    document.getElementById("music-sheet-links").innerHTML =
+      `<a href="${escapeHtml(spotifyUrl(query))}" target="_blank" rel="noreferrer" class="music-sheet-btn">🟢 Spotify</a>`
+      + `<a href="${escapeHtml(appleSearchUrl(query))}" target="_blank" rel="noreferrer" class="music-sheet-btn" id="music-sheet-apple">🍎 Apple Music</a>`;
+    document.getElementById("music-sheet").classList.remove("hidden");
+    const apple = document.getElementById("music-sheet-apple");
+    const known = appleCache[query.toLowerCase()];
+    if (known) { apple.href = known; return; }
+    if (known === "") return; // schon gefragt, Apple kennt die Band nicht: Such Link bleibt
+    // Solange Apple gefragt wird, ist der Knopf gesperrt, damit niemand auf dem iPhone im Such Link landet
+    apple.classList.add("is-loading");
+    apple.textContent = "🍎 Apple Music · sucht…";
+    lookupAppleArtist(query).then((url) => {
+      if (musicSheetQuery !== query || !apple.isConnected) return;
+      if (url) apple.href = url;
+      apple.classList.remove("is-loading");
+      apple.textContent = "🍎 Apple Music";
+    });
   }
-  function closeMusicSheet() { document.getElementById("music-sheet").classList.add("hidden"); }
+  function closeMusicSheet() { musicSheetQuery = ""; document.getElementById("music-sheet").classList.add("hidden"); }
   // Im Capture Schritt, damit der Tipp nicht zusätzlich eine Karte auf oder zuklappt
   document.addEventListener("click", (e) => {
     const a = e.target.closest("a[data-music-q]");
@@ -3248,6 +3298,8 @@
     openMusicSheet(a.dataset.musicQ);
   }, true);
   document.getElementById("music-sheet").addEventListener("click", (e) => {
+    const loading = e.target.closest(".music-sheet-btn.is-loading");
+    if (loading) { e.preventDefault(); return; }
     if (e.target.id === "music-sheet" || e.target.closest("[data-music-close]") || e.target.closest(".music-sheet-btn")) closeMusicSheet();
   });
   document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeMusicSheet(); });

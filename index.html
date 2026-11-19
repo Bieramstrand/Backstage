@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-<meta name="app-version" content="2.19.1" />
+<meta name="app-version" content="2.20.0" />
 <title>Backstage by BierAmStrand</title>
 
 <!-- App-Icon: dunkles Quadrat mit goldenem "B" -->
@@ -1118,6 +1118,7 @@
           <div style="margin:0 0 12px; display:flex; flex-wrap:wrap; gap:8px;">
             <button type="button" class="btn-promote" id="cc-archive-btn" style="font-size:13px; padding:8px 12px;">📚 Band Archiv</button>
             <button type="button" class="btn-promote hidden" id="cc-toggle-all" style="font-size:13px; padding:8px 12px;">Alle aufklappen</button>
+            <button type="button" class="btn-promote hidden" id="cc-refresh-all" style="font-size:13px; padding:8px 12px;" title="Alle Bands jetzt neu prüfen">🔄 Aktualisieren</button>
           </div>
 
           <p id="cc-summary" class="hidden" style="font-size:13px; color:var(--muted); margin:0 0 12px;"></p>
@@ -1334,9 +1335,13 @@
   // 2.0.1 für Fehlerbehebungen und Kleinigkeiten, 2.1.0 für neue Funktionen, 3.0.0 für große Umbauten.
   // Die Nummer steht zusätzlich im meta Tag app-version im Kopf der Seite, beide müssen gleich sein.
   // Geänderte Functions bekommen im Kopf ihrer Datei dieselbe Nummer, damit man auch dort den Stand erkennt.
-  const APP_VERSION = "2.19.1";
-  const APP_RELEASED = "2026-11-11";
+  const APP_VERSION = "2.20.0";
+  const APP_RELEASED = "2026-11-19";
   const CHANGELOG = [
+    { v: "2.20.0", date: "2026-11-19", title: "Live: Alle Bands aktualisieren", items: [
+      "Neben Alle aufklappen gibt es den Knopf Aktualisieren, der alle Bands auf einmal neu prüft, auch die im Archiv",
+      "Vorher kommt eine kurze Rückfrage, während der Prüfung zeigt der Knopf, wie weit sie ist",
+    ] },
     { v: "2.19.1", date: "2026-11-11", title: "Apple Music auf dem iPhone", items: [
       "Apple Music öffnet jetzt direkt die Seite der Band, auch in der Musik App auf dem iPhone",
       "Findet Apple die Band nicht, öffnet sich wie bisher die Suche",
@@ -4935,6 +4940,7 @@
     });
 
     sortedArtists.forEach((artist) => loadCCArtist(artist, false));
+    ccUpdateToggleAll();
     ccUpdateCounts();
   }
 
@@ -5019,7 +5025,43 @@
     return Array.from(document.querySelectorAll("#cc-widgets-feed .cc-artist-card")).filter((c) => c.dataset.ccHasBody === "1");
   }
 
+  // ---- Alle Bands neu prüfen ----
+  // Jede Band ist eine KI Suche. Deshalb erst fragen und dann in kleinen Gruppen nacheinander prüfen, nicht alle auf einmal.
+  const CC_REFRESH_PARALLEL = 4;
+  let ccRefreshRunning = false;
+  async function ccRefreshAll() {
+    if (ccRefreshRunning) return;
+    const artists = [...trackedArtists].sort((a, b) => a.localeCompare(b, "de", { sensitivity: "base" }));
+    if (artists.length === 0) return;
+    if (!confirm(`Alle ${artists.length} Bands jetzt neu prüfen? Das dauert eine Weile und kostet für jede Band eine Suche.`)) return;
+    const btn = document.getElementById("cc-refresh-all");
+    ccRefreshRunning = true;
+    btn.disabled = true;
+    let done = 0;
+    const show = () => { btn.textContent = `🔄 ${done} von ${artists.length}`; };
+    show();
+    const queue = artists.slice();
+    const worker = async () => {
+      while (queue.length) {
+        const artist = queue.shift();
+        if (!trackedArtists.includes(artist)) { done++; show(); continue; } // zwischendurch gelöscht
+        try { await loadCCArtist(artist, true); } catch { /* Fehler zeigt die Karte selbst */ }
+        done++;
+        show();
+      }
+    };
+    try {
+      await Promise.all(Array.from({ length: Math.min(CC_REFRESH_PARALLEL, artists.length) }, worker));
+    } finally {
+      ccRefreshRunning = false;
+      btn.disabled = false;
+      btn.textContent = "🔄 Aktualisieren";
+    }
+  }
+
   function ccUpdateToggleAll() {
+    const refreshBtn = document.getElementById("cc-refresh-all");
+    if (refreshBtn) refreshBtn.classList.toggle("hidden", trackedArtists.length === 0);
     const btn = document.getElementById("cc-toggle-all");
     if (!btn) return;
     const cards = ccCardsWithBody();
@@ -5067,6 +5109,7 @@
       e.preventDefault();
       ccToggleCard(header.closest(".cc-artist-card"));
     });
+    document.getElementById("cc-refresh-all").addEventListener("click", ccRefreshAll);
     document.getElementById("cc-toggle-all").addEventListener("click", () => {
       const cards = ccCardsWithBody();
       const allOpen = cards.length > 0 && cards.every((c) => openCC.has(c.dataset.ccKey));

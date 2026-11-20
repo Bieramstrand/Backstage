@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-<meta name="app-version" content="2.20.1" />
+<meta name="app-version" content="2.21.0" />
 <title>Backstage by BierAmStrand</title>
 
 <!-- App-Icon: dunkles Quadrat mit goldenem "B" -->
@@ -1334,9 +1334,14 @@
   // 2.0.1 für Fehlerbehebungen und Kleinigkeiten, 2.1.0 für neue Funktionen, 3.0.0 für große Umbauten.
   // Die Nummer steht zusätzlich im meta Tag app-version im Kopf der Seite, beide müssen gleich sein.
   // Geänderte Functions bekommen im Kopf ihrer Datei dieselbe Nummer, damit man auch dort den Stand erkennt.
-  const APP_VERSION = "2.20.1";
-  const APP_RELEASED = "2026-11-19";
+  const APP_VERSION = "2.21.0";
+  const APP_RELEASED = "2026-11-20";
   const CHANGELOG = [
+    { v: "2.21.0", date: "2026-11-20", title: "Live: gefundene Shows bleiben stehen", items: [
+      "Aktualisieren lässt Bands mit gefundener Hamburg Show aus und prüft nur noch die übrigen",
+      "Findet eine neue Suche eine schon bekannte Show nicht wieder, bleibt die Show trotzdem stehen, bis sie vorbei ist",
+      "Findet die Suche eine andere kommende Show, wird sie übernommen",
+    ] },
     { v: "2.20.1", date: "2026-11-19", title: "Live: Alle aufklappen entfernt", items: [
       "Der Knopf Alle aufklappen ist weg, einzelne Bands klappen wie bisher per Tipp auf",
     ] },
@@ -4990,7 +4995,10 @@
         method: 'POST',
         body: JSON.stringify({ band: artist })
       });
-      const data = await res.json();
+      let data = await res.json();
+      // KI Suchen sind nicht immer gleich: Findet die neue Suche eine schon bekannte, kommende Hamburg Show nicht wieder,
+      // bleibt die bekannte Show stehen. Eine andere kommende Show aus der neuen Suche wird dagegen übernommen.
+      if (cached && ccFutureShowIso(cached.data) && !ccFutureShowIso(data)) data = cached.data;
       concertCache[key] = { timestamp: Date.now(), data, ...ccTicketNews(cached, data) };
       persist();
       renderCCCard(artist, data);
@@ -5029,9 +5037,13 @@
   let ccRefreshRunning = false;
   async function ccRefreshAll() {
     if (ccRefreshRunning) return;
-    const artists = [...trackedArtists].sort((a, b) => a.localeCompare(b, "de", { sensitivity: "base" }));
-    if (artists.length === 0) return;
-    if (!confirm(`Alle ${artists.length} Bands jetzt neu prüfen? Das dauert eine Weile und kostet für jede Band eine Suche.`)) return;
+    // Bands mit gefundener, kommender Hamburg Show bleiben, wie sie sind
+    const all = [...trackedArtists].sort((a, b) => a.localeCompare(b, "de", { sensitivity: "base" }));
+    const artists = all.filter((a) => !ccFutureShowIso((concertCache[a.toLowerCase()] || {}).data));
+    const kept = all.length - artists.length;
+    if (artists.length === 0) { alert("Alle Bands haben schon eine gefundene Show, es gibt nichts zu prüfen."); return; }
+    const keptText = kept ? ` ${kept} ${kept === 1 ? "Band mit gefundener Show bleibt" : "Bands mit gefundener Show bleiben"}, wie ${kept === 1 ? "sie ist" : "sie sind"}.` : "";
+    if (!confirm(`${artists.length} Bands jetzt neu prüfen? Das dauert eine Weile und kostet für jede Band eine Suche.${keptText}`)) return;
     const btn = document.getElementById("cc-refresh-all");
     ccRefreshRunning = true;
     btn.disabled = true;
@@ -5225,6 +5237,13 @@
   // Meldung für die News: wird nur ausgelöst, wenn die Ticketlage für diese Show schlechter wird als je zuvor gemeldet
   // (gefragt, dann wenige, dann ausverkauft). Wackelt eine Quelle zwischen leer und wenige hin und her, gibt es keine zweite Meldung.
   const CC_TICKET_RANK = { gefragt: 1, wenige: 2, ausverkauft: 3 };
+  // Datum (JJJJ-MM-TT) einer gefundenen Hamburg Show, die heute oder später ist, sonst ""
+  function ccFutureShowIso(data) {
+    if (!data || !data.hasHamburgShow) return "";
+    const iso = ccParseGermanDate(data.date);
+    return iso && iso >= new Date().toISOString().slice(0, 10) ? iso : "";
+  }
+
   function ccTicketNews(prevEntry, data) {
     const showIso = data && data.hasHamburgShow ? ccParseGermanDate(data.date) : "";
     if (!showIso) return {};

@@ -1339,8 +1339,9 @@
   const CHANGELOG = [
     { v: "2.21.0", date: "2026-11-20", title: "Live: gefundene Shows bleiben stehen", items: [
       "Aktualisieren lässt Bands mit gefundener Hamburg Show aus und prüft nur noch die übrigen",
-      "Findet eine neue Suche eine schon bekannte Show nicht wieder, bleibt die Show trotzdem stehen, bis sie vorbei ist",
+      "Findet eine neue Suche eine schon bekannte Show nicht wieder, bleibt die Show trotzdem stehen",
       "Findet die Suche eine andere kommende Show, wird sie übernommen",
+      "In der letzten Woche vor dem Konzert wird jede Show noch einmal automatisch geprüft. Dieses Ergebnis gilt komplett, so kommen Absagen und geänderte Uhrzeiten an",
     ] },
     { v: "2.20.1", date: "2026-11-19", title: "Live: Alle aufklappen entfernt", items: [
       "Der Knopf Alle aufklappen ist weg, einzelne Bands klappen wie bisher per Tipp auf",
@@ -4981,6 +4982,9 @@
       if (cached.data.isOnTour && nearestIso && nearestIso < today) isFresh = false;
     }
 
+    // Letzte Woche vor dem Konzert: einmal neu prüfen, wenn die letzte Prüfung noch vor dieser Woche lag (auch bei ausverkauften Shows)
+    if (isFresh && ccInFinalWeek(cached.data) && cached.timestamp < ccShowStartMs(cached.data) - CC_FINAL_CHECK_DAYS * 86400000) isFresh = false;
+
     if (!forceRefresh && isFresh) {
       renderCCCard(artist, cached.data);
       return;
@@ -4998,7 +5002,8 @@
       let data = await res.json();
       // KI Suchen sind nicht immer gleich: Findet die neue Suche eine schon bekannte, kommende Hamburg Show nicht wieder,
       // bleibt die bekannte Show stehen. Eine andere kommende Show aus der neuen Suche wird dagegen übernommen.
-      if (cached && ccFutureShowIso(cached.data) && !ccFutureShowIso(data)) data = cached.data;
+      // Ausnahme letzte Woche vor dem Konzert: Dann gilt die neue Suche komplett, damit Absagen und geänderte Zeiten ankommen.
+      if (cached && ccFutureShowIso(cached.data) && !ccFutureShowIso(data) && !ccInFinalWeek(cached.data)) data = cached.data;
       concertCache[key] = { timestamp: Date.now(), data, ...ccTicketNews(cached, data) };
       persist();
       renderCCCard(artist, data);
@@ -5242,6 +5247,17 @@
     if (!data || !data.hasHamburgShow) return "";
     const iso = ccParseGermanDate(data.date);
     return iso && iso >= new Date().toISOString().slice(0, 10) ? iso : "";
+  }
+
+  const CC_FINAL_CHECK_DAYS = 7; // so viele Tage vor dem Konzert wird die Show noch einmal komplett geprüft
+  function ccShowStartMs(data) {
+    const iso = ccFutureShowIso(data);
+    return iso ? new Date(iso + "T00:00:00").getTime() : NaN;
+  }
+  // Ist eine gefundene Show in den nächsten 7 Tagen (oder heute)?
+  function ccInFinalWeek(data) {
+    const start = ccShowStartMs(data);
+    return !isNaN(start) && start - Date.now() <= CC_FINAL_CHECK_DAYS * 86400000;
   }
 
   function ccTicketNews(prevEntry, data) {

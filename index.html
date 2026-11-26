@@ -1338,6 +1338,7 @@
   const APP_RELEASED = "2026-11-26";
   const CHANGELOG = [
     { v: "2.22.0", date: "2026-11-26", title: "Konzertsuche findet neue Touren", items: [
+      "Im Band Archiv hat jede Band einen Knopf zum Neu Suchen (Pfeile), auch für Bands ohne Termin",
       "Beim Neu Prüfen einer einzelnen Band mit dem Pfeil Knopf und bei Bands, die auf Tour sind, sucht Backstage ein zweites Mal gezielt nach neu angekündigten Touren, wenn kein Hamburg Termin gefunden wurde",
       "Schreibweisen wie UNDERØATH und Underoath werden beide gesucht",
       "Bands, die auf Tour sind, aber noch keinen Hamburg Termin haben, werden schon nach 7 Tagen neu geprüft",
@@ -4875,6 +4876,7 @@
         <div class="cc-archive-row">
           <button type="button" class="cc-archive-name" data-archive-goto="${escapeHtml(artist)}">${escapeHtml(artist)}</button>
           ${st.text ? `<span class="cc-archive-status${st.hh ? " hh" : ""}">${escapeHtml(st.text)}</span>` : ""}
+          <button type="button" class="cc-inline-remove" data-archive-refresh="${escapeHtml(artist)}" title="Jetzt neu suchen" style="font-size:14px;">🔄</button>
           <button type="button" class="cc-inline-remove" data-archive-remove="${escapeHtml(artist)}" title="Band entfernen">✕</button>
         </div>`;
     });
@@ -4901,6 +4903,16 @@
       document.getElementById(id).addEventListener("click", () => { ccCloseArchive(); window.scrollTo(0, 0); });
     });
     panel.addEventListener("click", (e) => {
+      const rf = e.target.closest("[data-archive-refresh]");
+      if (rf) {
+        if (rf.disabled) return;
+        rf.disabled = true;
+        rf.textContent = "⏳";
+        loadCCArtist(rf.dataset.archiveRefresh, true, true)
+          .catch(() => {})
+          .finally(() => { renderCCArchive(); });
+        return;
+      }
       const rm = e.target.closest("[data-archive-remove]");
       if (rm) {
         const artist = rm.dataset.archiveRemove;

@@ -1,3 +1,4 @@
+// Version 2.22.0 (26.11.2026), gehört zu Backstage 2.22.0. Bei jeder Änderung dieser Datei die Nummer mit der Seite erhöhen.
 exports.handler = async function(event, context) {
   const headers = {
     'Access-Control-Allow-Origin': '*',
@@ -10,13 +11,20 @@ exports.handler = async function(event, context) {
   }
 
   try {
-    const { band } = JSON.parse(event.body || '{}');
+    const { band, focus } = JSON.parse(event.body || '{}');
 
     if (!band) {
       return { statusCode: 400, headers, body: JSON.stringify({ error: 'Bandname fehlt' }) };
     }
 
-    const prompt = `Suche gründlich nach aktuellen und anstehenden Konzerttermine für die Band "${band}" – mit Fokus auf Hamburg, aber auch generell in Deutschland.
+    // Schreibweisen: UNDERØATH und Underoath sind dieselbe Band, Suchen finden sonst nur eine Variante
+    const plain = band.replace(/[Øø]/g, (c) => (c === 'Ø' ? 'O' : 'o')).replace(/[Ææ]/g, (c) => (c === 'Æ' ? 'Ae' : 'ae')).normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    const spelling = plain.toLowerCase() !== band.toLowerCase() ? `Die Band schreibt sich auch "${plain}", suche unter beiden Schreibweisen. ` : '';
+    const today = new Date().toLocaleDateString('de-DE', { timeZone: 'Europe/Berlin' });
+    const recent = focus === 'neu'
+      ? `ZWEITER SUCHLAUF: Der erste Lauf hat keinen Hamburg Termin gefunden. Konzentriere dich jetzt auf KÜRZLICH ANGEKÜNDIGTE Tourneen (Ankündigungen der letzten Wochen) und suche gezielt nach "${band} Tour 2027", "${band} tour announcement", "${band} Hamburg 2027" und "${band} live Hamburg". Prüfe Musik Nachrichtenseiten, Ticketshops und die Tourdaten Seite der Band. Eine europäische Tour hat oft einen Hamburg Termin, schau die komplette Terminliste durch. `
+      : '';
+    const prompt = `Heute ist der ${today}. Berücksichtige Termine der nächsten 12 Monate und auch erst kürzlich angekündigte Tourneen. ${spelling}${recent}Suche gründlich nach aktuellen und anstehenden Konzerttermine für die Band "${band}" – mit Fokus auf Hamburg, aber auch generell in Deutschland.
 
 Durchsuche dabei bewusst MEHRERE Arten von Quellen, nicht nur die naheliegendsten:
 - Offizielle Website und Social-Media-Kanäle der Band (Instagram, Facebook)
@@ -34,7 +42,8 @@ Antworte AUSSCHLIESSLICH als valides JSON-Objekt (ohne Markdown-Codeblocks) mit 
   "location": "Venue Name & Stadt (z.B. Markthalle Hamburg)",
   "info": "Kurze Info zur Show oder alternative Termine in der Nähe",
   "ticketUrl": "Direkter Link zur KONKRETEN Event-Seite dieses Konzerts (z.B. von Eventim, Ticketmaster, der Venue-Website) – NIEMALS nur die Startseite eines Anbieters (z.B. NICHT 'eventim.de' allein). Falls kein echter, konkreter Event-Link gefunden wird, leerer String.",
-  "ticketAvailability": "'wenige' falls eine Quelle explizit meldet, dass nur noch wenige Tickets/limitiertes Kontingent verfügbar ist, 'ausverkauft' falls als ausverkauft gemeldet, sonst leerer String. NICHT raten – nur wenn tatsächlich eine Quelle das so nennt.",
+  "ticketAvailability": "'ausverkauft' falls eine Quelle die Hamburg-Show als ausverkauft meldet. 'wenige' falls eine Quelle explizit meldet, dass nur noch wenige Tickets/Restkarten/limitiertes Kontingent verfügbar sind oder die Show 'fast ausverkauft' ist. 'gefragt' falls Quellen eine sehr hohe Nachfrage belegen, zum Beispiel ein Zusatzkonzert wegen großer Nachfrage, eine Verlegung in eine größere Halle, eine Warteliste oder ein Vorverkauf mit sehr schnellem Abverkauf. Sonst leerer String. NICHT raten – nur wenn tatsächlich eine Quelle das so nennt.",
+  "ticketNote": "Kurzer Beleg mit Quelle für ticketAvailability, höchstens 80 Zeichen (z.B. 'Eventim: nur noch Restkarten'), sonst leerer String.",
   "isOnTour": true/false (true, falls die Band IRGENDWO in Deutschland/Europa aktuell oder demnächst einen Termin hat, auch wenn NICHT in Hamburg – dieses Feld möglichst nicht auf false setzen, ohne wirklich gründlich gesucht zu haben),
   "nearestShowDate": "TT.MM.JJJJ des nächstgelegenen/nächsten bekannten Tourtermins, falls isOnTour true ist, sonst leerer String",
   "nearestShowInfo": "Falls isOnTour true ist und hasHamburgShow false: kurze Info zum nächstgelegenen oder nächsten bekannten Tourtermin (Ort/Venue), sonst leerer String",
@@ -58,13 +67,21 @@ Antworte AUSSCHLIESSLICH als valides JSON-Objekt (ohne Markdown-Codeblocks) mit 
           { role: 'system', content: 'Du bist ein gründlicher Recherche-Assistent für Konzertdaten. Du gibst dich nicht mit dem ersten Suchergebnis zufrieden, sondern prüfst mehrere Quellenarten, bevor du antwortest.' },
           { role: 'user', content: prompt }
         ],
-        temperature: 0.1
+        temperature: 0.1,
+        ...(focus === 'neu' ? { search_recency_filter: 'month' } : {})
       })
     });
 
     const data = await response.json();
     const rawContent = data.choices[0].message.content.trim();
-    const concertData = JSON.parse(rawContent.replace(/```json|```/g, ''));
+    const cleaned = rawContent.replace(/```json|```/g, '');
+    const concertData = JSON.parse(cleaned.slice(cleaned.indexOf('{'), cleaned.lastIndexOf('}') + 1));
+    // Nachfrage Angaben bereinigen: nur bekannte Werte, Beleg kurz
+    const okAvail = ['ausverkauft', 'wenige', 'gefragt'];
+    concertData.ticketAvailability = okAvail.includes(String(concertData.ticketAvailability || '').toLowerCase().trim())
+      ? String(concertData.ticketAvailability).toLowerCase().trim() : '';
+    concertData.ticketNote = concertData.ticketAvailability && typeof concertData.ticketNote === 'string'
+      ? concertData.ticketNote.trim().slice(0, 100) : '';
 
     return {
       statusCode: 200,

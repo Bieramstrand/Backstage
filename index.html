@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-<meta name="app-version" content="2.21.0" />
+<meta name="app-version" content="2.22.0" />
 <title>Backstage by BierAmStrand</title>
 
 <!-- App-Icon: dunkles Quadrat mit goldenem "B" -->
@@ -1334,9 +1334,14 @@
   // 2.0.1 für Fehlerbehebungen und Kleinigkeiten, 2.1.0 für neue Funktionen, 3.0.0 für große Umbauten.
   // Die Nummer steht zusätzlich im meta Tag app-version im Kopf der Seite, beide müssen gleich sein.
   // Geänderte Functions bekommen im Kopf ihrer Datei dieselbe Nummer, damit man auch dort den Stand erkennt.
-  const APP_VERSION = "2.21.0";
-  const APP_RELEASED = "2026-11-20";
+  const APP_VERSION = "2.22.0";
+  const APP_RELEASED = "2026-11-26";
   const CHANGELOG = [
+    { v: "2.22.0", date: "2026-11-26", title: "Konzertsuche findet neue Touren", items: [
+      "Beim Neu Prüfen einer einzelnen Band mit dem Pfeil Knopf und bei Bands, die auf Tour sind, sucht Backstage ein zweites Mal gezielt nach neu angekündigten Touren, wenn kein Hamburg Termin gefunden wurde",
+      "Schreibweisen wie UNDERØATH und Underoath werden beide gesucht",
+      "Bands, die auf Tour sind, aber noch keinen Hamburg Termin haben, werden schon nach 7 Tagen neu geprüft",
+    ] },
     { v: "2.21.0", date: "2026-11-20", title: "Live: gefundene Shows bleiben stehen", items: [
       "Aktualisieren lässt Bands mit gefundener Hamburg Show aus und prüft nur noch die übrigen",
       "Findet eine neue Suche eine schon bekannte Show nicht wieder, bleibt die Show trotzdem stehen",
@@ -4758,6 +4763,7 @@
 
   // ---- Konzerte (Perplexity-KI-Radar für Hamburg) ----
   const CC_CACHE_DAYS = 14; // Cache-Dauer für "kein Termin bekannt", danach wird automatisch neu abgefragt (Bands ohne Termin liegen nur im Archiv, deshalb seltener)
+  const CC_CACHE_DAYS_TOUR = 7; // Band ist auf Tour, aber noch ohne Hamburg Termin: öfter neu prüfen, weil Termine nachgetragen werden
   const CC_CACHE_DAYS_FOUND = 30; // Cache-Dauer für bereits gefundene Shows/Tour-Hinweise (länger, gegen KI-Inkonsistenz)
 
   // Die frühere Chips Liste ist entfallen, alle Bands stehen im Band Archiv.
@@ -4944,7 +4950,7 @@
       </div>`).join("");
 
     feed.querySelectorAll("[data-cc-refresh]").forEach((b) => {
-      b.addEventListener("click", () => loadCCArtist(b.dataset.ccRefresh, true));
+      b.addEventListener("click", () => loadCCArtist(b.dataset.ccRefresh, true, true));
     });
 
     sortedArtists.forEach((artist) => loadCCArtist(artist, false));
@@ -4952,7 +4958,7 @@
     ccUpdateCounts();
   }
 
-  async function loadCCArtist(artist, forceRefresh) {
+  async function loadCCArtist(artist, forceRefresh, deep) {
     const key = artist.toLowerCase();
     const statusEl = document.querySelector(`[data-cc-status="${CSS.escape(artist)}"]`);
     const cached = concertCache[key];
@@ -4964,6 +4970,7 @@
     // dass automatisch neu geprüft wird.
     const wasFound = cached && cached.data && (cached.data.hasHamburgShow || cached.data.isOnTour);
     let cacheDurationMs = (wasFound ? CC_CACHE_DAYS_FOUND : CC_CACHE_DAYS) * 24 * 60 * 60 * 1000;
+    if (cached && cached.data && !cached.data.hasHamburgShow && cached.data.isOnTour) cacheDurationMs = Math.min(cacheDurationMs, CC_CACHE_DAYS_TOUR * 24 * 60 * 60 * 1000);
     // Die Ticketlage ändert sich schnell: nahe Shows werden wöchentlich neu geprüft, solange sie nicht ausverkauft sind
     if (cached && cached.data && cached.data.hasHamburgShow && String(cached.data.ticketAvailability || "").toLowerCase() !== "ausverkauft") {
       const showIso = ccParseGermanDate(cached.data.date);
@@ -5000,6 +5007,17 @@
         body: JSON.stringify({ band: artist })
       });
       let data = await res.json();
+      // Zweiter Suchlauf gezielt nach neu angekündigten Touren, wenn Hamburg fehlt
+      if (data && !data.error && !data.hasHamburgShow && (deep || data.isOnTour)) {
+        try {
+          const res2 = await fetch('/.netlify/functions/get-concerts', {
+            method: 'POST',
+            body: JSON.stringify({ band: artist, focus: 'neu' })
+          });
+          const data2 = await res2.json();
+          if (data2 && !data2.error && data2.hasHamburgShow) data = data2;
+        } catch (e2) { console.warn("Zweiter Suchlauf fehlgeschlagen für " + artist, e2); }
+      }
       // KI Suchen sind nicht immer gleich: Findet die neue Suche eine schon bekannte, kommende Hamburg Show nicht wieder,
       // bleibt die bekannte Show stehen. Eine andere kommende Show aus der neuen Suche wird dagegen übernommen.
       // Ausnahme letzte Woche vor dem Konzert: Dann gilt die neue Suche komplett, damit Absagen und geänderte Zeiten ankommen.

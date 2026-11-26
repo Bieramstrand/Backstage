@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-<meta name="app-version" content="2.22.0" />
+<meta name="app-version" content="2.22.1" />
 <title>Backstage by BierAmStrand</title>
 
 <!-- App-Icon: dunkles Quadrat mit goldenem "B" -->
@@ -1334,9 +1334,12 @@
   // 2.0.1 für Fehlerbehebungen und Kleinigkeiten, 2.1.0 für neue Funktionen, 3.0.0 für große Umbauten.
   // Die Nummer steht zusätzlich im meta Tag app-version im Kopf der Seite, beide müssen gleich sein.
   // Geänderte Functions bekommen im Kopf ihrer Datei dieselbe Nummer, damit man auch dort den Stand erkennt.
-  const APP_VERSION = "2.22.0";
+  const APP_VERSION = "2.22.1";
   const APP_RELEASED = "2026-11-26";
   const CHANGELOG = [
+    { v: "2.22.1", date: "2026-11-26", title: "Einkehr: mehr Abwechslung", items: [
+      "Bei den Konzerten in Plano stehen nicht mehr überall dieselben Locations: Läden, die schon bei einem anderen Konzert vorgeschlagen wurden, rutschen nach hinten, auch bei verschiedenen Hallen im selben Viertel",
+    ] },
     { v: "2.22.0", date: "2026-11-26", title: "Konzertsuche findet neue Touren", items: [
       "Im Band Archiv hat jede Band einen Knopf zum Neu Suchen (Pfeile), auch für Bands ohne Termin",
       "Beim Neu Prüfen einer einzelnen Band mit dem Pfeil Knopf und bei Bands, die auf Tour sind, sucht Backstage ein zweites Mal gezielt nach neu angekündigten Touren, wenn kein Hamburg Termin gefunden wurde",
@@ -3956,9 +3959,11 @@
   }
   // Pro Konzert 2 Locations mit Essen und 1 mit Drinks (Bar), aus dem Umkreis. Fehlt eine Sorte, rücken die besten der anderen nach, höchstens 3.
   // Mehrere Konzerte am selben Ort bekommen nach Möglichkeit verschiedene Vorschläge: die Konzerte werden nach Datum abgearbeitet, schon vergebene Läden kommen zuletzt.
+  const NEARBY_REPEAT_PENALTY = 6; // Abzug pro früherer Nennung bei einem anderen Konzert: ein ähnlich guter, noch nicht genannter Laden gewinnt
   function computeNearbyPicks() {
     const picks = new Map();
     const usedByVenue = new Map();
+    const usedAll = new Map(); // wie oft ein Laden schon bei irgendeinem Konzert vorgeschlagen wurde, damit nicht überall dieselben stehen
     const concerts = upcomingConcertsWithLocation()
       .filter((ev) => typeof ev.lat === "number" && typeof ev.lng === "number")
       .sort((a, b) => (a.date || "").localeCompare(b.date || "") || String(a.id).localeCompare(String(b.id)));
@@ -3969,7 +3974,7 @@
         .filter((sp) => !sp.closed && typeof sp.lat === "number" && typeof sp.lng === "number")
         .map((sp) => ({ sp, d: distanceM(ev.lat, ev.lng, sp.lat, sp.lng) }))
         .filter((x) => x.d <= NEARBY_RADIUS_M)
-        .map((x) => ({ ...x, score: nearbyScore(x.sp, x.d, ev.date), fresh: !used.has(x.sp.id), type: SPOT_DRINK_TYPES.includes(x.sp.type || "Restaurant") ? "drink" : SPOT_FOOD_TYPES.includes(x.sp.type || "Restaurant") ? "food" : "other" }))
+        .map((x) => ({ ...x, score: nearbyScore(x.sp, x.d, ev.date) - (usedAll.get(x.sp.id) || 0) * NEARBY_REPEAT_PENALTY, fresh: !used.has(x.sp.id), type: SPOT_DRINK_TYPES.includes(x.sp.type || "Restaurant") ? "drink" : SPOT_FOOD_TYPES.includes(x.sp.type || "Restaurant") ? "food" : "other" }))
         .filter((x) => x.type !== "other")
         .sort((a, b) => (b.fresh - a.fresh) || (b.score - a.score) || a.d - b.d);
       const food = cands.filter((x) => x.type === "food");
@@ -3980,7 +3985,7 @@
       while (chosen.length < NEARBY_MAX && rest.length) chosen.push(rest.shift());
       // Anzeige: erst Essen, dann Drinks, jeweils die beste zuerst
       chosen.sort((a, b) => (a.type === "drink") - (b.type === "drink") || (b.fresh - a.fresh) || (b.score - a.score));
-      chosen.forEach((x) => used.add(x.sp.id));
+      chosen.forEach((x) => { used.add(x.sp.id); usedAll.set(x.sp.id, (usedAll.get(x.sp.id) || 0) + 1); });
       usedByVenue.set(venueKey, used);
       picks.set(ev.id, chosen);
     });

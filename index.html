@@ -759,6 +759,10 @@
           </form>
         </div>
         <div id="admin-visit-stats" style="margin-bottom:20px; padding:16px; border-radius:10px; background:rgba(240,239,236,0.06); border:1px solid rgba(240,239,236,0.14);"></div>
+        <div id="admin-anstoss" style="margin-bottom:20px;">
+          <h3 style="font-size:12px; font-weight:700; letter-spacing:0.08em; text-transform:uppercase; color:var(--muted); margin:0 0 10px;">Anstoß App Nutzung</h3>
+          <div id="admin-anstoss-stats" style="padding:16px; border-radius:10px; background:rgba(240,239,236,0.06); border:1px solid rgba(240,239,236,0.14);"></div>
+        </div>
         <textarea id="admin-notes-textarea" rows="20" placeholder="Ideen, Notizen, To-dos für die Website…" style="width:100%; padding:14px; border-radius:8px; background:rgba(240,239,236,0.06); border:1px solid rgba(240,239,236,0.18); color:var(--paper); font-family:inherit; font-size:16px; resize:vertical; box-sizing:border-box;"></textarea>
         <div style="display:flex; justify-content:flex-end; align-items:center; gap:10px; margin-top:12px;">
           <span id="admin-save-status" style="font-size:12px; color:var(--muted);"></span>
@@ -1342,9 +1346,13 @@
   // 2.0.1 für Fehlerbehebungen und Kleinigkeiten, 2.1.0 für neue Funktionen, 3.0.0 für große Umbauten.
   // Die Nummer steht zusätzlich im meta Tag app-version im Kopf der Seite, beide müssen gleich sein.
   // Geänderte Functions bekommen im Kopf ihrer Datei dieselbe Nummer, damit man auch dort den Stand erkennt.
-  const APP_VERSION = "2.22.4";
-  const APP_RELEASED = "2026-11-26";
+  const APP_VERSION = "2.22.5";
+  const APP_RELEASED = "2026-11-27";
   const CHANGELOG = [
+    { v: "2.22.5", date: "2026-11-27", title: "Anstoß Nutzung im Admin Bereich", items: [
+      "Im Admin Bereich steht jetzt, wie viele Geräte die Anstoß App nutzen: heute, letzte 7 und 30 Tage, mit Push",
+      "Dazu ein Verlauf der letzten 14 Tage und jedes Gerät mit Lieblingsverein, Version und letzter Nutzung, ohne Namen",
+    ] },
     { v: "2.22.4", date: "2026-11-26", title: "Knöpfe in Plano und im Band Archiv", items: [
       "Tickets wieder sperren ist ein Knopf in derselben Größe wie Passwort eingeben",
       "Im Band Archiv sind die Knöpfe zum Neu Suchen und Entfernen größer (30 Pixel), damit man sie auf dem iPhone sicher trifft",
@@ -1649,6 +1657,7 @@
       document.getElementById("admin-notes-view").classList.remove("hidden");
       document.getElementById("admin-notes-textarea").value = adminNotes;
       renderVisitStats();
+      renderAnstossStats();
       renderAdminTickets();
       openMyAppsIfRemembered();
     } else {
@@ -1817,6 +1826,44 @@
       </div>
       <div style="font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:0.05em; margin-bottom:4px;">Letzte Besuche</div>
       ${recentHtml}`;
+  }
+
+  // Anstoß App: anonyme Nutzungszahlen kommen von der Anstoß Seite (nur Zählwerte, keine Namen)
+  async function renderAnstossStats() {
+    const el = document.getElementById("admin-anstoss-stats");
+    if (!el) return;
+    el.innerHTML = `<div style="font-size:12px; color:var(--muted);">Lädt …</div>`;
+    let j;
+    try {
+      const r = await fetch("https://anstossapp.netlify.app/.netlify/functions/stats", { cache: "no-store" });
+      if (!r.ok) throw new Error(r.status);
+      j = await r.json();
+    } catch (e) {
+      el.innerHTML = `<div style="font-size:12px; color:var(--muted);">Zahlen konnten gerade nicht geladen werden.</div>`;
+      return;
+    }
+    const esc = (t) => String(t == null ? "" : t).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+    const kpi = (n, l) => `<div><div style="font-size:22px; font-weight:800; color:var(--amber);">${n}</div><div style="font-size:11.5px; color:var(--muted);">${l}</div></div>`;
+    const when = (t) => {
+      const x = new Date(t), td = new Date(), hm = x.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
+      if (x.toDateString() === td.toDateString()) return "heute " + hm;
+      if (x.toDateString() === new Date(td - 864e5).toDateString()) return "gestern " + hm;
+      return x.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" });
+    };
+    const mx = Math.max(1, ...(j.perDay || []).map((d) => d[1]));
+    const bars = (j.perDay || []).map(([d, n]) => `<div title="${esc(d)}: ${n}" style="flex:1; display:flex; flex-direction:column; justify-content:flex-end; align-items:center; gap:3px;"><span style="font-size:9.5px; color:var(--muted);">${n || ""}</span><i style="display:block; width:100%; height:${Math.round(4 + (n / mx) * 40)}px; border-radius:3px; background:var(--amber); opacity:${n ? 0.9 : 0.25};"></i></div>`).join("");
+    const devs = (j.devices || []).map((x) => `<div style="padding:6px 0; border-top:1px solid rgba(240,239,236,0.08);">
+        <div style="font-size:13px; font-weight:600;">${esc(x.dev || "Gerät")}${x.favs && x.favs.length ? " · " + esc(x.favs.join(", ")) : ""}</div>
+        <div style="font-size:11px; color:var(--muted);">Zuletzt ${when(x.last)} · ${x.days} ${x.days === 1 ? "Tag" : "Tage"} aktiv · Version ${esc(x.v || "?")}${x.push ? " · Push an" : ""}${x.app ? "" : " · im Browser"}</div>
+      </div>`).join("");
+    el.innerHTML = `
+      <div style="display:flex; gap:20px; flex-wrap:wrap; margin-bottom:14px;">
+        ${kpi(j.today, "Heute")}${kpi(j.d7, "Letzte 7 Tage")}${kpi(j.d30, "Letzte 30 Tage")}${kpi(j.total, "Geräte")}${kpi(j.push, "Mit Push")}
+      </div>
+      <div style="display:flex; gap:4px; align-items:flex-end; height:62px; margin-bottom:12px;">${bars}</div>
+      <div style="font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:0.05em; margin-bottom:2px;">Geräte</div>
+      ${devs || `<div style="font-size:11px; color:var(--muted);">Noch kein Gerät gemeldet.</div>`}
+      <div style="text-align:right; margin-top:8px;"><a href="https://anstossapp.netlify.app/stats.html" target="_blank" rel="noopener" style="font-size:12px; color:var(--muted);">Statistik öffnen ↗</a></div>`;
   }
 
   function ccDetectDevice() {
